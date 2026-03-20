@@ -1,0 +1,390 @@
+---
+apiVersion: v1
+data:
+  config-amd64.xml: |
+    <?xml version='1.1' encoding='UTF-8'?>
+    <hudson>
+      <disabledAdministrativeMonitors/>
+      <version>2.278</version>
+      <installStateName>RUNNING</installStateName>
+      <numExecutors>2</numExecutors>
+      <mode>NORMAL</mode>
+      <useSecurity>true</useSecurity>
+      <authorizationStrategy class="hudson.security.ProjectMatrixAuthorizationStrategy">
+        <permission>com.cloudbees.plugins.credentials.CredentialsProvider.Create:authenticated</permission>
+        <permission>com.cloudbees.plugins.credentials.CredentialsProvider.Delete:authenticated</permission>
+        <permission>com.cloudbees.plugins.credentials.CredentialsProvider.ManageDomains:authenticated</permission>
+        <permission>com.cloudbees.plugins.credentials.CredentialsProvider.Update:authenticated</permission>
+        <permission>com.cloudbees.plugins.credentials.CredentialsProvider.View:authenticated</permission>
+        <permission>hudson.model.Computer.Build:authenticated</permission>
+        <permission>hudson.model.Computer.Configure:authenticated</permission>
+        <permission>hudson.model.Computer.Connect:authenticated</permission>
+        <permission>hudson.model.Computer.Create:authenticated</permission>
+        <permission>hudson.model.Computer.Delete:authenticated</permission>
+        <permission>hudson.model.Computer.Disconnect:authenticated</permission>
+        <permission>hudson.model.Hudson.Administer:authenticated</permission>
+        <permission>hudson.model.Hudson.Read:authenticated</permission>
+        <permission>hudson.model.Item.Build:anonymous</permission>
+        <permission>hudson.model.Item.Build:authenticated</permission>
+        <permission>hudson.model.Item.Cancel:authenticated</permission>
+        <permission>hudson.model.Item.Configure:authenticated</permission>
+        <permission>hudson.model.Item.Create:authenticated</permission>
+        <permission>hudson.model.Item.Delete:authenticated</permission>
+        <permission>hudson.model.Item.Discover:authenticated</permission>
+        <permission>hudson.model.Item.Move:authenticated</permission>
+        <permission>hudson.model.Item.Read:authenticated</permission>
+        <permission>hudson.model.Item.Workspace:authenticated</permission>
+        <permission>hudson.model.Run.Delete:authenticated</permission>
+        <permission>hudson.model.Run.Replay:authenticated</permission>
+        <permission>hudson.model.Run.Update:authenticated</permission>
+        <permission>hudson.model.View.Configure:authenticated</permission>
+        <permission>hudson.model.View.Create:authenticated</permission>
+        <permission>hudson.model.View.Delete:authenticated</permission>
+        <permission>hudson.model.View.Read:authenticated</permission>
+        <permission>hudson.scm.SCM.Tag:authenticated</permission>
+        <permission>org.jenkins.plugins.lockableresources.LockableResourcesManager.Reserve:authenticated</permission>
+        <permission>org.jenkins.plugins.lockableresources.LockableResourcesManager.Unlock:authenticated</permission>
+      </authorizationStrategy>
+      <securityRealm class="hudson.security.HudsonPrivateSecurityRealm">
+        <disableSignup>true</disableSignup>
+        <enableCaptcha>false</enableCaptcha>
+      </securityRealm>
+      <disableRememberMe>false</disableRememberMe>
+      <projectNamingStrategy class="jenkins.model.ProjectNamingStrategy$DefaultProjectNamingStrategy"/>
+      <workspaceDir>${JENKINS_HOME}/workspace/${ITEM_FULL_NAME}</workspaceDir>
+      <buildsDir>${ITEM_ROOTDIR}/builds</buildsDir>
+      <markupFormatter class="hudson.markup.EscapedMarkupFormatter"/>
+      <jdks>
+        <jdk>
+          <name>java-1.8</name>
+          <home>/usr/local/openjdk-8</home>
+          <properties/>
+        </jdk>
+      </jdks>
+      <viewsTabBar class="hudson.views.DefaultViewsTabBar"/>
+      <myViewsTabBar class="hudson.views.DefaultMyViewsTabBar"/>
+      <clouds/>
+      <quietPeriod>5</quietPeriod>
+      <scmCheckoutRetryCount>0</scmCheckoutRetryCount>
+      <views>
+        <hudson.model.AllView>
+          <owner class="hudson" reference="../../.."/>
+          <name>all</name>
+          <filterExecutors>false</filterExecutors>
+          <filterQueue>false</filterQueue>
+          <properties class="hudson.model.View$PropertyList"/>
+        </hudson.model.AllView>
+      </views>
+      <primaryView>all</primaryView>
+      <slaveAgentPort>-1</slaveAgentPort>
+      <label></label>
+      <crumbIssuer class="hudson.security.csrf.DefaultCrumbIssuer">
+        <excludeClientIPFromCrumb>false</excludeClientIPFromCrumb>
+      </crumbIssuer>
+      <nodeProperties/>
+      <globalNodeProperties/>
+    </hudson>
+  config-arm64.xml: |
+    <?xml version='1.1' encoding='UTF-8'?>
+    <hudson>
+      <disabledAdministrativeMonitors/>
+      <version>2.278</version>
+      <installStateName>RUNNING</installStateName>
+      <numExecutors>2</numExecutors>
+      <mode>NORMAL</mode>
+      <useSecurity>true</useSecurity>
+      <authorizationStrategy class="hudson.security.ProjectMatrixAuthorizationStrategy">
+        <permission>com.cloudbees.plugins.credentials.CredentialsProvider.Create:authenticated</permission>
+        <permission>com.cloudbees.plugins.credentials.CredentialsProvider.Delete:authenticated</permission>
+        <permission>com.cloudbees.plugins.credentials.CredentialsProvider.ManageDomains:authenticated</permission>
+        <permission>com.cloudbees.plugins.credentials.CredentialsProvider.Update:authenticated</permission>
+        <permission>com.cloudbees.plugins.credentials.CredentialsProvider.View:authenticated</permission>
+        <permission>hudson.model.Computer.Build:authenticated</permission>
+        <permission>hudson.model.Computer.Configure:authenticated</permission>
+        <permission>hudson.model.Computer.Connect:authenticated</permission>
+        <permission>hudson.model.Computer.Create:authenticated</permission>
+        <permission>hudson.model.Computer.Delete:authenticated</permission>
+        <permission>hudson.model.Computer.Disconnect:authenticated</permission>
+        <permission>hudson.model.Hudson.Administer:authenticated</permission>
+        <permission>hudson.model.Hudson.Read:authenticated</permission>
+        <permission>hudson.model.Item.Build:anonymous</permission>
+        <permission>hudson.model.Item.Build:authenticated</permission>
+        <permission>hudson.model.Item.Cancel:authenticated</permission>
+        <permission>hudson.model.Item.Configure:authenticated</permission>
+        <permission>hudson.model.Item.Create:authenticated</permission>
+        <permission>hudson.model.Item.Delete:authenticated</permission>
+        <permission>hudson.model.Item.Discover:authenticated</permission>
+        <permission>hudson.model.Item.Move:authenticated</permission>
+        <permission>hudson.model.Item.Read:authenticated</permission>
+        <permission>hudson.model.Item.Workspace:authenticated</permission>
+        <permission>hudson.model.Run.Delete:authenticated</permission>
+        <permission>hudson.model.Run.Replay:authenticated</permission>
+        <permission>hudson.model.Run.Update:authenticated</permission>
+        <permission>hudson.model.View.Configure:authenticated</permission>
+        <permission>hudson.model.View.Create:authenticated</permission>
+        <permission>hudson.model.View.Delete:authenticated</permission>
+        <permission>hudson.model.View.Read:authenticated</permission>
+        <permission>hudson.scm.SCM.Tag:authenticated</permission>
+        <permission>org.jenkins.plugins.lockableresources.LockableResourcesManager.Reserve:authenticated</permission>
+        <permission>org.jenkins.plugins.lockableresources.LockableResourcesManager.Unlock:authenticated</permission>
+      </authorizationStrategy>
+      <securityRealm class="hudson.security.HudsonPrivateSecurityRealm">
+        <disableSignup>true</disableSignup>
+        <enableCaptcha>false</enableCaptcha>
+      </securityRealm>
+      <disableRememberMe>false</disableRememberMe>
+      <projectNamingStrategy class="jenkins.model.ProjectNamingStrategy$DefaultProjectNamingStrategy"/>
+      <workspaceDir>${JENKINS_HOME}/workspace/${ITEM_FULL_NAME}</workspaceDir>
+      <buildsDir>${ITEM_ROOTDIR}/builds</buildsDir>
+      <markupFormatter class="hudson.markup.EscapedMarkupFormatter"/>
+      <jdks>
+        <jdk>
+          <name>java-1.8</name>
+          <home>/docker-java-home</home>
+          <properties/>
+        </jdk>
+      </jdks>
+      <viewsTabBar class="hudson.views.DefaultViewsTabBar"/>
+      <myViewsTabBar class="hudson.views.DefaultMyViewsTabBar"/>
+      <clouds/>
+      <quietPeriod>5</quietPeriod>
+      <scmCheckoutRetryCount>0</scmCheckoutRetryCount>
+      <views>
+        <hudson.model.AllView>
+          <owner class="hudson" reference="../../.."/>
+          <name>all</name>
+          <filterExecutors>false</filterExecutors>
+          <filterQueue>false</filterQueue>
+          <properties class="hudson.model.View$PropertyList"/>
+        </hudson.model.AllView>
+      </views>
+      <primaryView>all</primaryView>
+      <slaveAgentPort>-1</slaveAgentPort>
+      <label></label>
+      <crumbIssuer class="hudson.security.csrf.DefaultCrumbIssuer">
+        <excludeClientIPFromCrumb>false</excludeClientIPFromCrumb>
+      </crumbIssuer>
+      <nodeProperties/>
+      <globalNodeProperties/>
+    </hudson>
+kind: ConfigMap
+metadata:
+  name: config.xml
+  namespace: kube-system
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins-service
+  namespace: kube-system
+spec:
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+      nodePort: 30234
+  selector:
+    app: jenkins-server
+  type: NodePort
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: jenkins-home-pv
+  labels:
+    app: jenkins-home
+spec:
+  accessModes:
+    - ReadWriteMany
+  capacity:
+    storage: 2Gi
+  csi:
+    driver: nfs.csi.k8s.io
+    volumeAttributes:
+      server: {{.nfsServer}}
+      share: /boc/jenkins_home
+    volumeHandle: jenkins-home-data-id
+  mountOptions:
+    - nfsvers=4.1
+    - nolock
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nfs-csi
+  volumeMode: Filesystem
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: jenkins-maven-pv
+  labels:
+    app: jenkins-maven
+spec:
+  accessModes:
+    - ReadWriteMany
+  capacity:
+    storage: 2Gi
+  csi:
+    driver: nfs.csi.k8s.io
+    volumeAttributes:
+      server: {{.nfsServer}}
+      share: /boc/jenkins_maven
+    volumeHandle: jenkins-maven-data-id
+  mountOptions:
+    - nfsvers=4.1
+    - nolock
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nfs-csi
+  volumeMode: Filesystem
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jenkins-home-pvc
+  namespace: kube-system
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: nfs-csi
+  selector:
+    matchLabels:
+      app: jenkins-home
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jenkins-maven-pvc
+  namespace: kube-system
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: nfs-csi
+  selector:
+    matchLabels:
+      app: jenkins-maven
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins
+  namespace: kube-system
+spec:
+  replicas: {{.replicas}}
+  selector:
+    matchLabels:
+      app: jenkins-server
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: jenkins-server
+    spec:
+      initContainers:
+      - image: {{ .repo }}busybox:1.35
+        imagePullPolicy: Always
+        command:
+          - "/bin/sh"
+          - "-c"
+          - "if [ $(arch) == 'x86_64' ];then cp /opt/config-amd64.xml /var/jenkins_home/config.xml; echo 'x86_64' ;  else cp /opt/config-arm64.xml /var/jenkins_home/config.xml;echo 'arm'; fi"
+        name: config
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /opt
+          name: jenkins-config
+        - mountPath: /var/jenkins_home
+          name: jenkins-home
+      containers:
+        - env:
+            - name: ANT_HOME
+              value: /var/jenkins_home/tools/hudson.tasks.Ant_AntInstallation/apache-ant-1.10.1
+            - name: PATH
+              value: /usr/local/openjdk-8/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/var/jenkins_home/tools/hudson.tasks.Ant_AntInstallation/apache-ant-1.10.1/bin:/var/jenkins_home/tools/hudson.tasks.Maven_MavenInstallation/maven3.5/bin
+            - name: JAVA_OPTS
+              value: -Duser.timezone=Asia/Shanghai
+          image: {{ .repo }}jenkins:2.278
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /login
+              port: 8080
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+          name: jenkins
+          ports:
+            - containerPort: 8080
+              name: httpport
+            - containerPort: 50000
+              name: jnlpport
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /login
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+            requests:
+              cpu: 500m
+              memory: 500Mi
+          volumeMounts:
+            - mountPath: /root/.m2
+              name: jenkins-maven
+            - mountPath: /var/jenkins_home
+              name: jenkins-home
+            - mountPath: /etc/localtime
+              name: local-time
+            - mountPath: /etc/hosts
+              name: local-hosts
+            - mountPath: /usr/bin/docker
+              name: docker-binary
+            - mountPath: /var/run/docker.sock
+              name: docker-sock
+            - mountPath: /usr/lib/aarch64-linux-gnu/libltdl.so.7 
+              name: libltdl
+      securityContext:
+        fsGroup: 0
+        runAsUser: 0
+      volumes:
+        - name: jenkins-maven
+          persistentVolumeClaim:
+            claimName: jenkins-maven-pvc
+        - name: jenkins-home
+          persistentVolumeClaim:
+            claimName: jenkins-home-pvc
+        - hostPath:
+            path: /etc/localtime
+          name: local-time
+        - hostPath:
+            path: /etc/hosts
+          name: local-hosts
+        - hostPath:
+            path: /usr/bin/docker
+          name: docker-binary
+        - hostPath:
+            path: /var/run/docker.sock
+          name: docker-sock
+
+        - name: jenkins-config
+          configMap:
+            items:
+            - key: config-amd64.xml
+              path: config-amd64.xml
+            - key: config-arm64.xml
+              path: config-arm64.xml
+            name: config.xml
+
+        - name: libltdl
+          hostPath:
+            path: /usr/lib64/libltdl.so.7

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gpu-agent-metric
+  namespace: gpu-system
+  annotations:
+    prometheus.io/scrape: "true"
+  labels:
+    kubernetes.io/cluster-service: "true"
+    name: gpu-agent-metric
+spec:
+  clusterIP: None
+  ports:
+    - name: metric
+      port: 5678
+      protocol: TCP
+      targetPort: 5678
+  selector:
+    name: gpu-agent

@@ -1,0 +1,92 @@
+apiVersion: v1
+data:
+  alertmanager.yaml: Z2xvYmFsOgogIHJlc29sdmVfdGltZW91dDogNW0Kcm91dGU6CiAgZ3JvdXBfYnk6IFsnam9iJ10KICBncm91cF93YWl0OiAzMHMKICBncm91cF9pbnRlcnZhbDogNW0KICByZXBlYXRfaW50ZXJ2YWw6IDEyaAogIHJlY2VpdmVyOiAnbnVsbCcKICByb3V0ZXM6CiAgLSBtYXRjaDoKICAgICAgYWxlcnRuYW1lOiBXYXRjaGRvZwogICAgcmVjZWl2ZXI6ICdudWxsJwpyZWNlaXZlcnM6Ci0gbmFtZTogJ251bGwnCg==
+kind: Secret
+metadata:
+  name: alertmanager-main
+  namespace: monitoring
+type: Opaque
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    alertmanager: main
+  name: alertmanager-main
+  namespace: monitoring
+spec:
+  ports:
+    - name: web
+      nodePort: 30903
+      port: 9093
+      targetPort: web
+  selector:
+    alertmanager: main
+    app: alertmanager
+  sessionAffinity: ClientIP
+  type: NodePort
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: alertmanager-main
+  namespace: monitoring
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    k8s-app: alertmanager
+  name: alertmanager
+  namespace: monitoring
+spec:
+  endpoints:
+    - interval: 30s
+      port: web
+  selector:
+    matchLabels:
+      alertmanager: main
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Alertmanager
+metadata:
+  labels:
+    alertmanager: main
+    kubernetes.customized/cluster_component_prometheus: alertmanager
+  name: main
+  namespace: monitoring
+spec:
+  baseImage: {{ .repo }}prometheus/alertmanager
+  nodeSelector:
+    kubernetes.io/os: linux
+  replicas: {{ .replicas }}
+  securityContext:
+    fsGroup: 2000
+    runAsNonRoot: true
+    runAsUser: 1000
+  serviceAccountName: alertmanager-main
+  version: v0.18.0
+  {{- if eq .ipModVersion "ipv6" }}
+hostNetwork: true
+dnsPolicy: ClusterFirstWithHostNet
+fullClusterPeer: true
+readinessInitialDelaySeconds: 60
+tolerations:
+  - key: "node.kubernetes.io/unschedulable"
+    operator: "Exists"
+    effect: "NoSchedule"
+  - key: "node-role.kubernetes.io/master"
+    operator: "Exists"
+    effect: "NoSchedule"
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: node-role.kubernetes.io/master
+              operator: Exists
+  {{- end }}

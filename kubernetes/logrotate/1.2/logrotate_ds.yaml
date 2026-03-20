@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: logrotate
+  namespace: kube-system
+  labels:
+    app: logging
+    kubernetes.customized/cluster_component_logrotate: logrotate
+    version: "1.2"
+spec:
+  selector:
+    matchLabels:
+      app: logging
+  template:
+    metadata:
+      labels:
+        app: logging
+        id: logrotate
+      name: logrotate
+    spec:
+      containers:
+        - name: logrotate-es
+          image: {{ .repo }}logrotate:1.2
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: containers
+              mountPath: /var/lib/docker/containers
+            - name: varlibcontainers
+              mountPath: /var/lib/kubelet/pods
+            - mountPath: /var/log
+              name: varlog
+            - name: logs
+              mountPath: /logs
+          env:
+            - name: LOGS_DIRECTORIES
+              value: "/var/lib/docker/containers /var/lib/kubelet/pods /var/log"
+            - name: LOGROTATE_INTERVAL
+              value: "daily"
+            - name: LOGROTATE_COPIES
+              value: "5"
+            - name: LOGROTATE_SIZE
+              value: "100M"
+            - name: LOGROTATE_COMPRESSION
+              value: "nocompress"
+            - name: LOGROTATE_MAXAGE
+              value: "10"
+            - name: DEBUG
+              value: "false"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - hostPath:
+            path: /var/lib/docker/containers
+          name: containers
+        - hostPath:
+            path: /var/lib/kubelet/pods
+          name: varlibcontainers
+        - hostPath:
+            path: /var/log
+          name: varlog
+        - hostPath:
+            path: /var/log/containers/logrotate
+          name: logs
+

@@ -1,0 +1,30 @@
+[os_tuna]
+name=tuna os
+baseurl=https://mirrors.tuna.tsinghua.edu.cn/centos/7/os/x86_64/
+gpgcheck=0
+enabled=1
+
+[os_aliyun]
+name=aliyun os
+baseurl=https://mirrors.aliyun.com/centos/7/os/x86_64/
+gpgcheck=0
+enable=1
+
+[epel]
+name=tuna epel
+baseurl=https://mirrors.tuna.tsinghua.edu.cn/epel/7/x86_64/
+gpgcheck=0
+enabled=1
+
+
+[extras]
+name=tuna extras
+baseurl=https://mirrors.tuna.tsinghua.edu.cn/centos/7/extras/x86_64/
+gpgcheck=0
+enabled=1
+
+[kubernetes]
+name=kubernetes
+baseurl=https://mirrors.tuna.tsinghua.edu.cn/kubernetes/yum/repos/kubernetes-el7-x86_64/
+gpgcheck=0
+enabled=1

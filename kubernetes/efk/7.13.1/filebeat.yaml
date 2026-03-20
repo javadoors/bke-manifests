@@ -1,0 +1,239 @@
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: filebeat
+  namespace: kube-system
+  labels:
+    k8s-app: filebeat
+    kubernetes.customized/cluster_component_filebeat: filebeat
+    version: "7.13.1"
+spec:
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      k8s-app: filebeat
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        k8s-app: filebeat
+    spec:
+      containers:
+        - args:
+            - -c
+            - /etc/filebeat.yml
+            - -e
+          env:
+            - name: KAFKA_HOSTS
+              value: '["http://kafka-logging:9092"]'
+            - name: KAFKA_TOPIC
+              value: topic
+            - name: KAFKA_REQUIRED_ACKS
+              value: "1"
+            - name: ELASTICSEARCH_HOSTS
+              value: '["http://elasticsearch-logging:9200"]'
+            - name: ELASTICSEARCH_USERNAME
+              value: elastic
+            - name: ELASTICSEARCH_PASSWORD
+              value: elastic
+            - name: ELASTIC_CLOUD_ID
+            - name: ELASTIC_CLOUD_AUTH
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+          image: {{ .repo }}filebeat:7.13.1
+          imagePullPolicy: IfNotPresent
+          name: filebeat
+          resources:
+            limits:
+              memory: 200Mi
+            requests:
+              cpu: 100m
+              memory: 100Mi
+          securityContext:
+            runAsUser: 0
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /etc/filebeat.yml
+              name: inputs
+              readOnly: true
+              subPath: kubernetes.yml
+            - mountPath: /usr/share/filebeat/inputs.d
+              name: inputs
+              readOnly: true
+            - mountPath: /usr/share/filebeat/data
+              name: data
+            - mountPath: /var/lib/kubelet/pods
+              name: varlibcontainers
+              readOnly: true
+            - mountPath: /var/lib/docker/containers
+              name: varlibdockers
+              readOnly: true
+            - mountPath: /var/log
+              name: varlog
+              readOnly: true
+      dnsPolicy: ClusterFirstWithHostNet
+      hostNetwork: true
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: filebeat
+      serviceAccountName: filebeat
+      terminationGracePeriodSeconds: 30
+      tolerations:
+        - effect: NoSchedule
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
+      volumes:
+        - hostPath:
+            path: /var/lib/kubelet/pods
+            type: ""
+          name: varlibcontainers
+        - hostPath:
+            path: /var/lib/docker/containers
+            type: ""
+          name: varlibdockers
+        - hostPath:
+            path: /var/log
+            type: ""
+          name: varlog
+        - configMap:
+            defaultMode: 384
+            name: filebeat-inputs
+          name: inputs
+        - name: data
+          hostPath:
+            path: /usr/share/filebeat/data
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: filebeat
+  labels:
+    k8s-app: filebeat
+    kubernetes.customized/cluster_component_filebeat: filebeat
+subjects:
+  - kind: ServiceAccount
+    name: filebeat
+    namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: filebeat
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: filebeat
+  labels:
+    k8s-app: filebeat
+    kubernetes.customized/cluster_component_filebeat: filebeat
+rules:
+  - apiGroups: [""] # "" indicates the core API group
+    resources:
+      - namespaces
+      - pods
+      - nodes
+    verbs:
+      - get
+      - watch
+      - list
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: filebeat
+  namespace: kube-system
+  labels:
+    k8s-app: filebeat
+    kubernetes.customized/cluster_component_filebeat: filebeat
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    k8s-app: filebeat
+    kubernetes.customized/cluster_component_filebeat: filebeat
+  name: filebeat-config
+  namespace: kube-system
+data:
+  filebeat.yml: |-
+    filebeat.config:
+      inputs:
+        path: ${path.config}/inputs.d/*.yml
+        reload.enabled: false
+      modules:
+        path: ${path.config}/modules.d/*.yml
+        reload.enabled: false
+    processors:
+      - add_cloud_metadata:
+    cloud.id: ${ELASTIC_CLOUD_ID}
+    cloud.auth: ${ELASTIC_CLOUD_AUTH}
+    output.elasticsearch:
+      enabled: true
+      hosts: ${ELASTICSEARCH_HOSTS}
+      username: ${ELASTICSEARCH_USERNAME}
+      password: ${ELASTICSEARCH_PASSWORD}
+    output.kafka:
+      enabled: false
+      hosts: ${KAFKA_HOSTS}
+      topic: ${KAFKA_TOPIC}
+      required_acks: ${KAFKA_REQUIRED_ACKS}
+    output.file:
+      enabled: false
+      path: "/tmp/filebeat"
+      filename: filebeat
+      rotate_every_kb: 100000
+      number_of_files: 2
+      permissions: 0600
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filebeat-inputs
+  namespace: kube-system
+  labels:
+    k8s-app: filebeat
+    kubernetes.customized/cluster_component_filebeat: filebeat
+data:
+  kubernetes.yml: |-
+    filebeat.inputs:
+    - type: log
+      enabled: true
+      paths:
+        - /var/log/containers/*.log
+      processors:
+        - add_kubernetes_metadata:
+            host: ${NODE_NAME}
+            matchers:
+            - logs_path:
+                logs_path: "/var/log/containers/"
+    - type: log
+      enabled: true
+      paths:
+        - /var/lib/docker/containers/*/emptydir/*/*.log
+      processors:
+        - add_kubernetes_metadata:
+            host: ${NODE_NAME}
+            matchers:
+            - logs_path:
+                logs_path: "/var/lib/docker/containers/"
+    processors:
+      - add_cloud_metadata:
+      - add_host_metadata:
+    cloud.id: ${ELASTIC_CLOUD_ID}
+    cloud.auth: ${ELASTIC_CLOUD_AUTH}
+    output.elasticsearch:
+      enabled: true
+      hosts: ${ELASTICSEARCH_HOSTS}
+      username: ${ELASTICSEARCH_USERNAME}
+      password: ${ELASTICSEARCH_PASSWORD}

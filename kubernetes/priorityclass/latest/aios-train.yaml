@@ -1,0 +1,23 @@
+apiVersion: scheduling.k8s.io/v1
+description: high priority used by train application of aios
+globalDefault: false
+kind: PriorityClass
+metadata:
+  name: train-high
+value: 10000
+---
+apiVersion: scheduling.k8s.io/v1
+description: low priority used by train application of aios
+globalDefault: false
+kind: PriorityClass
+metadata:
+  name: train-low
+value: 100
+---
+apiVersion: scheduling.k8s.io/v1
+description: medium priority used by train application of aios
+globalDefault: false
+kind: PriorityClass
+metadata:
+  name: train-med
+value: 1000

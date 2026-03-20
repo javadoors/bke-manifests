@@ -1,0 +1,178 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.7.0
+  creationTimestamp: null
+  name: gpunodes.bocloud.com
+spec:
+  group: bocloud.com
+  names:
+    kind: GPUNode
+    listKind: GPUNodeList
+    plural: gpunodes
+    singular: gpunode
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .status.phase
+          name: Phase
+          type: string
+        - jsonPath: .status.message
+          name: Message
+          priority: 1
+          type: string
+        - jsonPath: .status.lastSyncTime
+          name: LastSync
+          priority: 1
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1beta1
+      schema:
+        openAPIV3Schema:
+          description: GPUNode is the Schema for the gpunodes API
+          properties:
+            apiVersion:
+              description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+              type: string
+            kind:
+              description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: GPUNodeSpec defines the desired state of GPUNode
+              properties:
+                runtime:
+                  description: Runtime spec the behavior of GPUMaintainer
+                  properties:
+                    autoRestart:
+                      description: AutoRestart spec the switch of restart container-cri
+                      enum:
+                        - true
+                        - false
+                      type: boolean
+                  type: object
+              required:
+                - runtime
+              type: object
+            status:
+              description: GPUNodeStatus defines the observed state of GPUNode
+              properties:
+                devices:
+                  description: Devices is the array of node gpu devices
+                  items:
+                    description: GPUDeviceInfo represent the info of GPUDevice
+                    properties:
+                      capacity:
+                        description: Capacity
+                        items:
+                          description: GPUResourceCapacity represent the capacity of
+                            GPUDevice register to node
+                          properties:
+                            name:
+                              description: Name
+                              type: string
+                            value:
+                              description: Value
+                              type: integer
+                          required:
+                            - value
+                          type: object
+                        type: array
+                      device:
+                        description: Device represent the deviceId of device
+                        type: string
+                      name:
+                        description: Name represent the index of device
+                        type: string
+                      pcieID:
+                        description: PcieID the pcie slot id of physical card,
+                        type: string
+                      productInfo:
+                        description: ProductInfo
+                        properties:
+                          memory:
+                            anyOf:
+                              - type: integer
+                              - type: string
+                            description: Memory represent the memory of GPU-like product
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          mode:
+                            description: Mode represent the running mode of GPUProduct
+                              if it's vendor is nvidia
+                            enum:
+                              - MIG
+                              - VGPU
+                              - MPS
+                              - UNKNOWN
+                            type: string
+                          name:
+                            description: Name represent the name of product
+                            type: string
+                        type: object
+                      uuid:
+                        description: UUID represent the uuid of device
+                        type: string
+                      vDevTemplate:
+                        additionalProperties:
+                          format: int32
+                          type: integer
+                        description: VDevTemplate for ASCEND
+                        type: object
+                      vendor:
+                        description: Vendor represent the vendorId of device
+                        type: string
+                    type: object
+                  type: array
+                lastSyncTime:
+                  description: LastSyncTime
+                  format: date-time
+                  type: string
+                message:
+                  description: Message is a message about the current status of the
+                    GPUNode.
+                  type: string
+                phase:
+                  description: Phase represent the current state of GPUNode
+                  enum:
+                    - New
+                    - Ready
+                    - NotReady
+                    - InProgress
+                    - InValid
+                  type: string
+                system:
+                  description: System is a message about the systemInfo of the GPUNode.
+                  properties:
+                    arch:
+                      description: Arch represent the os arch
+                      type: string
+                    os:
+                      description: OS represent the os serial
+                      type: string
+                    version:
+                      description: Version represent the os version
+                      type: string
+                  type: object
+              required:
+                - phase
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

@@ -1,0 +1,12 @@
+FROM deploy.bocloud.k8s:40443/paas/jenkins:2.278
+USER root
+
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list
+RUN apt-get update -qq && apt-get -qqy install apt-transport-https ca-certificates curl gnupg lsb-release
+RUN curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg \
+    && echo \
+      "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://mirrors.aliyun.com/docker-ce/linux/debian \
+      $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+RUN apt-get update -qq && apt-get install -qqy docker-ce
+RUN usermod -aG docker jenkins && docker --version
+USER jenkins

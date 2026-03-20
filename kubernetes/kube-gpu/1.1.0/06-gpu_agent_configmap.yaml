@@ -1,0 +1,232 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: agent-config
+  namespace: gpu-system
+data:
+  extra-config.json: |
+    {}
+  volume.conf: |
+    {
+      "volume": [
+        {
+          "name": "nvidia",
+          "base": "/etc/gpu-agent/vdriver",
+          "mode": "ro",
+          "components": {
+            "binaries": [
+              "nvidia-cuda-mps-control",
+              "nvidia-cuda-mps-server",
+              "nvidia-debugdump",
+              "nvidia-persistenced",
+              "nvidia-smi",
+              "gpu-client",
+              "dl-modprobe"
+            ],
+            "libraries": [
+              "libnvidia-ml.so",
+              "libdlml.so",
+              "libixml.so",
+              "libcuda.so",
+              "librocm_smi64.so.2",
+              "libcuda-control.so",
+              "libnvidia-ptxjitcompiler.so",
+              "libnvidia-fatbinaryloader.so",
+              "libnvidia-opencl.so",
+              "libnvidia-compiler.so",
+              "libvdpau_nvidia.so",
+              "libnvidia-encode.so",
+              "libnvcuvid.so",
+              "libnvidia-fbc.so",
+              "libnvidia-ifr.so",
+              "libGL.so",
+              "libGLX.so",
+              "libOpenGL.so",
+              "libGLESv1_CM.so",
+              "libGLESv2.so",
+              "libEGL.so",
+              "libGLdispatch.so",
+              "libGLX_nvidia.so",
+              "libEGL_nvidia.so",
+              "libGLESv2_nvidia.so",
+              "libGLESv1_CM_nvidia.so",
+              "libnvidia-eglcore.so",
+              "libnvidia-egl-wayland.so",
+              "libnvidia-glcore.so",
+              "libnvidia-tls.so",
+              "libnvidia-glsi.so",
+              "libnvidia-opticalflow.so"
+            ]
+          }
+        },
+        {
+          "name": "origin",
+          "base": "/etc/gpu-agent/vdriver",
+          "mode": "ro",
+          "components": {
+            "binaries": [
+              "nvidia-cuda-mps-control",
+              "nvidia-cuda-mps-server",
+              "nvidia-debugdump",
+              "nvidia-persistenced",
+              "nvidia-smi",
+              "dl-modprobe"
+            ],
+            "libraries": [
+              "libnvidia-ml.so",
+              "libdlml.so",
+              "libixml.so",
+              "libcuda.so",
+              "librocm_smi64.so.2",
+              "libnvidia-ptxjitcompiler.so",
+              "libnvidia-fatbinaryloader.so",
+              "libnvidia-opencl.so",
+              "libnvidia-compiler.so",
+              "libvdpau_nvidia.so",
+              "libnvidia-encode.so",
+              "libnvcuvid.so",
+              "libnvidia-fbc.so",
+              "libnvidia-ifr.so",
+              "libGL.so",
+              "libGLX.so",
+              "libOpenGL.so",
+              "libGLESv1_CM.so",
+              "libGLESv2.so",
+              "libEGL.so",
+              "libGLdispatch.so",
+              "libGLX_nvidia.so",
+              "libEGL_nvidia.so",
+              "libGLESv2_nvidia.so",
+              "libGLESv1_CM_nvidia.so",
+              "libnvidia-eglcore.so",
+              "libnvidia-egl-wayland.so",
+              "libnvidia-glcore.so",
+              "libnvidia-tls.so",
+              "libnvidia-glsi.so",
+              "libnvidia-opticalflow.so"
+            ]
+          }
+        }
+      ]
+    }
+  copy-bin-lib.sh: |
+    #!/bin/bassh
+
+    set -o pipefail
+    set -o errexit
+    set -o nounset
+
+    FILE=${FILE:-"/etc/gpu-agent/volume.conf"}
+    LIB_FILES=$(jq -r .volume[1].components.libraries[] ${FILE})
+    BIN_FILES=$(jq -r .volume[1].components.binaries[] ${FILE})
+    readonly NV_DIR="/usr/local/nvidia"
+    readonly FIND_BASE=${FIND_BASE:-"/usr/local/host"}
+
+    function check_arch() {
+      local readonly lib=$1
+      if [[ $(objdump -f ${lib} | grep -o "elf64-x86-64") == "elf64-x86-64" ]]; then
+        echo "64"
+      else
+        echo ""
+      fi
+    }
+
+    function copy_lib() {
+      for target in $(find ${FIND_BASE} -name "${1}*" | grep -v "stubs"); do
+        if [[ $(objdump -p ${target} 2>/dev/null | grep -o "SONAME") == "SONAME" ]]; then
+          copy_directory ${target} "${NV_DIR}/lib$(check_arch ${target})"
+        fi
+      done
+    }
+
+    function copy_bin() {
+      for target in $(find ${FIND_BASE} -name "${1}"); do
+        if [[ -L ${target} ]]; then
+          echo "${target} is symlink"
+          continue
+        fi
+        if [[ "${1}" = "dl-modprobe" ]]; then
+           copy_directory ${target} "/usr/bin/"
+           continue
+        fi
+        copy_directory ${target} "${NV_DIR}/bin/"
+      done
+    }
+
+    function copy_directory() {
+      local readonly lib=$1
+      local readonly path=$2
+
+      echo "copy ${lib} to ${path}"
+      cp -Pf "${lib}" "${path}"
+    }
+
+    rm -rf ${NV_DIR}
+    mkdir -p ${NV_DIR}/{bin,lib,lib64}
+
+    for file in ${LIB_FILES[@]}; do
+      copy_lib ${file}
+    done
+
+    for file in ${BIN_FILES[@]}; do
+      copy_bin ${file}
+    done
+
+    # fix libvdpau_nvidia.so
+    (
+      cd ${NV_DIR}/lib
+      rm -rf libvdpau_nvidia.so
+      rel_path=$(readlink -f libvdpau_nvidia.so.1)
+      ln -s $(basename ${rel_path}) libvdpau_nvidia.so
+    )
+
+    (
+      cd ${NV_DIR}/lib64
+      rm -rf libvdpau_nvidia.so
+      rel_path=$(readlink -f libvdpau_nvidia.so.1)
+      ln -s $(basename ${rel_path}) libvdpau_nvidia.so
+    )
+
+    # fix libnvidia-ml.so
+    (
+      cd ${NV_DIR}/lib
+      rm -rf libnvidia-ml.so
+      rel_path=$(readlink -f libnvidia-ml.so.1)
+      ln -s $(basename ${rel_path}) libnvidia-ml.so
+    )
+
+    (
+      cd ${NV_DIR}/lib64
+      rm -rf libnvidia-ml.so
+      rel_path=$(readlink -f libnvidia-ml.so.1)
+      ln -s $(basename ${rel_path}) libnvidia-ml.so
+    )
+
+  ld.sh: |
+    #!/bin/bash
+
+    set -o errexit
+    set -o pipefail
+    set -o nounset
+
+    source /etc/gpu-agent/copy-bin-lib.sh
+
+    echo "rebuild ldcache"
+    ldconfig -f /etc/ld.so.conf
+    echo "ld ok"
+  start.sh: |
+    #!/bin/bash
+    /etc/gpu-agent/ld.sh
+    /app/kube-gpu agent --extra-config=/etc/gpu-agent/extra-config.json \
+          - --v=${KLOG_LEVEL} \
+          - --log-level=${LOG_LEVEL} \
+          - --hostname-override=${NODE_NAME} \
+          - --namespace=${NameSpace} \
+          - --share-mode=true \
+          - --volume-config=/etc/gpu-agent/volume.conf \
+          - --log-dir=/var/log/gpu-agent \
+          - --query-addr=0.0.0.0 \
+          - --logtostderr=false \
+          - --cgroup-driver=systemd \
+          - --container-runtime-endpoint={{ .criSock }}

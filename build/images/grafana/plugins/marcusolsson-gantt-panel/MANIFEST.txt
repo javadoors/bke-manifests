@@ -1,0 +1,37 @@
+
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+{
+  "manifestVersion": "2.0.0",
+  "signatureType": "community",
+  "signedByOrg": "marcusolsson",
+  "signedByOrgName": "Marcus Olsson",
+  "rootUrls": [],
+  "plugin": "marcusolsson-gantt-panel",
+  "version": "0.8.1",
+  "time": 1656939088099,
+  "keyId": "7e4d0c6a708866e7",
+  "files": {
+    "img/dark.png": "a99b6f7e1cdc1cf8a5b1d5558bed4ee9b2998063b2c0d8932bf76b20241fead4",
+    "img/logo.svg": "360d6e805c3d99714c01ee23efbdbb84bd9c279471acec4d5bed0901a8488e22",
+    "img/light.png": "fcb10b8798a4f3b60b064d9e6eaf64e1221d1f161de985e73ce78d3802b24a36",
+    "CHANGELOG.md": "ff316df94d2eb3e258880bbe1243148f580ee697f29c1237922f023467f9ba71",
+    "LICENSE": "5ab170e6de9123e3d011f1cd05e8dc2586954c1e889aac499bf5d98dc83e2839",
+    "plugin.json": "efad7378c5eb59521874dffb2dd000309752edb9760cc51c07578d536acca49a",
+    "module.js.map": "d7be6294653f9d84069a6a34b271937dcc769bdcb308a4981a23c1280a01fb8a",
+    "README.md": "6dfc4b7005720bc3fa044f86a2404cd56caa49d436bdc4a02c27bd26b86a1cf9",
+    "module.js": "198d061239890ddf2efe5b2c53700fc74a62aba2e38fc6a90d55c8cc559203e8"
+  }
+}
+-----BEGIN PGP SIGNATURE-----
+Version: OpenPGP.js v4.10.10
+Comment: https://openpgpjs.org
+
+wrgEARMKAAYFAmLC4lAAIQkQfk0ManCIZucWIQTzOyW2kQdOhGNlcPN+TQxq
+cIhm50whAgkBliuERsGzceXTWR/xbPLyB4FhT0SjnVggY2L+kRZiIjskDBYU
+tdqfJngSJ3YLfIN1NzNOSg2zb7/N0/+pg8s+EyQCCOUcVr7jelXQpfgLqUUr
+UfriyV7Dys5xHtBf553C3OavqhIvUKFe4XR5AY3uI+u998Ayk3hAAmwBwtIF
+Fy14G/93
+=zczL
+-----END PGP SIGNATURE-----

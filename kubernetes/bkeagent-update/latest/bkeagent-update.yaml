@@ -1,0 +1,26 @@
+apiVersion: bkeagent.bocloud.com/v1beta1
+kind: Command
+metadata:
+  name: update-bkeagent
+  namespace: {{.namespace}}
+spec:
+  commands:
+    - backoffDelay: 3
+      command:
+        - SelfUpdate
+        # agentUrl为非必填参数，但需要存在bkeagent-latest-linux-{.arch}命名的二进制文件
+        # {.arch}是告诉根据主机的架构下载对应的架构的agent二进制文件
+        # 如主机为amd64 那么将使用http://http.bocloud.k8s:40080/files/bkeagent-latest-linux-amd64 去下载
+        #- agentUrl=http://http.bocloud.k8s:40080/files/bkeagent-latest-linux-{.arch}
+        - agentUrl={{.agentUrl}}
+      id: self-update
+      type: BuiltIn
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 1000
+  # 节点选择，可指定多个
+  nodeSelector:
+    matchLabels:
+    {{- $ips := split .nodesIps "," }}
+    {{- range $ips }}
+    {{ . }}: {{ . }}
+    {{- end }}

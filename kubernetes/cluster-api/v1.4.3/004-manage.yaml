@@ -1,0 +1,75 @@
+{{ if eq .manage "true" }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bke-cluster
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: bke-cluster-k8s-token
+  namespace: bke-cluster
+data:
+  token: {{ b64encode .clusterToken }}
+
+{{- range .nodes }}
+---
+apiVersion: bke.bocloud.com/v1beta1
+kind: BKENode
+metadata:
+  name: bke-cluster-{{ .hostname }}
+  namespace: bke-cluster
+  labels:
+    cluster.x-k8s.io/cluster-name: bke-cluster
+spec:
+  hostname: {{ .hostname }}
+  ip: {{ .ip }}
+  username: {{ .username }}
+  password: {{ .password }}
+  port: "{{ .port }}"
+  role:
+{{- range .role }}
+  - {{ . }}
+{{- end }}
+{{- end }}
+
+---
+apiVersion: bke.bocloud.com/v1beta1
+kind: BKECluster
+metadata:
+  name: bke-cluster
+  namespace: bke-cluster
+  annotations:
+    bke.bocloud.com/cluster-from: "bocloud"
+    bke.bocloud.com/appointment-deleted-nodes: ""
+    bke.bocloud.com/deep-restore-node: 'false'
+    bke.bocloud.com/ignore-namespace-delete: 'false'
+    bke.bocloud.com/ignore-target-cluster-delete: 'true'
+    bke.bocloud.com/node-boot-wait-timeout: 1m
+spec:
+  controlPlaneEndpoint:
+    host: {{ .apiServerSrcHost }}
+    port: {{ .apiServerSrcPort }}
+  clusterConfig:
+    cluster:
+      agentHealthPort: "{{ .agentHealthPort }}"
+      imageRepo:
+        domain: {{ .imageRepoDomain}}
+        ip: {{ .imageRepoIp }}
+        port: "{{ .imageRepoPort }}"
+        prefix: {{ .imageRepoPrefix }}
+      httpRepo:
+        domain: {{ .httpRepoDomain }}
+        ip: {{ .httpRepoIp }}
+        port: "{{ .httpRepoPort }}"
+        prefix: {{ .httpRepoPrefix }}
+      ntpServer: {{ .ntpServer }}
+      openFuyaoVersion: {{ .openFuyaoVersion }}
+      containerdVersion: {{ .containerdVersion }}
+    customExtra:
+      bkeagent-launcher-image: {{ if .repo }}{{ .repo }}{{ else }}cr.openfuyao.cn/openfuyao/{{ end }}bkeagent-launcher:latest
+status:
+  openFuyaoVersion: {{ .openFuyaoVersion }}
+  containerdVersion: {{ .containerdVersion }}
+{{- end }}

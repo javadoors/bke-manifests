@@ -1,0 +1,117 @@
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: postgres-pv
+  namespace: kube-system #保证和postgres pod一个命名空间
+  labels:
+    app: postgres
+spec:
+  accessModes:
+    - ReadWriteMany
+  capacity:
+    storage: 10Gi
+  csi:
+    driver: nfs.csi.k8s.io
+    volumeAttributes:
+      server: {{.nfsServer}}
+      share: {{.nfsRootDir}}/postgres/data
+    volumeHandle: postgres-id
+  mountOptions:
+    - nfsvers={{.nfsVersion}}
+    - nolock
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: nfs-csi
+  volumeMode: Filesystem
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: kube-system #保证和postgres pod一个命名空间
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: nfs-csi
+  selector:
+    matchLabels:
+      app: postgres
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: kube-system
+spec:
+  selector:
+    app: aios-postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: kube-system
+  labels:
+    app: aios-postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aios-postgres
+  template:
+    metadata:
+      labels:
+        app: aios-postgres
+    spec:
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+      containers:
+        - env:
+            - name: POSTGRES_HOST
+              value: 127.0.0.1
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_DATABASE
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              value: postgres
+            - name: POSTGRES_USER
+              value: postgres
+            - name: PGDATA
+              value: /var/lib/postgresql/data/{{ .namespace }}
+          image: {{.repo}}postgres:16
+          args:
+            - -c
+            - max_connections=1000
+          imagePullPolicy: IfNotPresent
+          name: postgres
+          ports:
+            - containerPort: 5432
+              name: http-1
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            periodSeconds: 10
+            successThreshold: 1
+            tcpSocket:
+              port: 5432
+            timeoutSeconds: 1
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: postgres-data
+              subPath: {{ .namespace }}

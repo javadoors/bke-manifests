@@ -1,0 +1,99 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: null
+  labels:
+    k8s-app: kube-controller-manager
+  name: kube-controller-manager
+  namespace: kube-system
+spec:
+  clusterIP: None
+  ports:
+  - name: https-metrics
+    port: 10257
+    targetPort: 10257
+  {{- if vlt .k8sVersion "v1.22.0" }}
+  - name: http-metrics
+    port: 10252
+    targetPort: 10252
+  {{- end }}
+  selector:
+    component: kube-controller-manager
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    k8s-app: kube-scheduler
+  name: kube-scheduler
+  namespace: kube-system
+spec:
+  clusterIP: None
+  ports:
+  - name: https-metrics
+    port: 10259
+    targetPort: 10259
+  {{- if vlt .k8sVersion "v1.22.0" }}
+  - name: http-metrics
+    port: 10251
+    targetPort: 10251
+  {{- end }}
+  selector:
+    component: kube-scheduler
+
+---
+# etcd-endpoints
+apiVersion: v1
+kind: Endpoints
+metadata:
+  labels:
+    k8s-app: etcd
+  name: etcd
+  namespace: kube-system
+subsets:
+  - addresses:
+      {{- $ips := split .etcdIps "," }}
+        {{- range $ips }}
+        - ip: {{ . }}
+      {{- end }}
+    ports:
+      - name: metrics
+        port: 2381
+        protocol: TCP
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    k8s-app: etcd
+  name: etcd
+  namespace: kube-system
+spec:
+  endpoints:
+  - interval: 30s
+    port: metrics
+    scheme: http
+  jobLabel: k8s-app
+  namespaceSelector: {}
+  selector:
+    matchLabels:
+      k8s-app: etcd
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    k8s-app: etcd
+  name: etcd
+  namespace: kube-system
+spec:
+  clusterIP: None
+  ports:
+  - name: metrics
+    port: 2381
+    protocol: TCP
+    targetPort: 2381

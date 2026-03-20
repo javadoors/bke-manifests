@@ -1,0 +1,27 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    name: gpu-agent-metric
+  name: gpu-agent-metric
+  namespace: gpu-system
+spec:
+  endpoints:
+    - interval: 30s
+      path: /metric
+      port: metric
+      relabelings:
+      - action: replace
+        regex: (.*)
+        replacement: $1
+        sourceLabels: [__meta_kubernetes_pod_node_name]
+        targetLabel: instance
+      - action: replace
+        sourceLabels: [__meta_kubernetes_pod_controller_name]
+        regex: (.*)
+        targetLabel: pod #replace different pod name
+        replacement: ${1}
+      scheme: http
+  selector:
+    matchLabels:
+      name: gpu-agent-metric

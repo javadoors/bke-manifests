@@ -1,0 +1,23 @@
+apiVersion: scheduling.k8s.io/v1
+description: high priority used by infer application of aios
+globalDefault: false
+kind: PriorityClass
+metadata:
+  name: infer-high
+value: 10000
+---
+apiVersion: scheduling.k8s.io/v1
+description: low priority used by infer application of aios
+globalDefault: false
+kind: PriorityClass
+metadata:
+  name: infer-low
+value: 100
+---
+apiVersion: scheduling.k8s.io/v1
+description: medium priority used by infer application of aios
+globalDefault: false
+kind: PriorityClass
+metadata:
+  name: infer-med
+value: 1000

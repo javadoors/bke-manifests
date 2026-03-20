@@ -1,0 +1,52 @@
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  labels:
+    k8s-app: node-exporter-external
+  name: node-exporter-external
+  namespace: monitoring
+subsets:
+- addresses:
+{{- range .addressIp }}
+    - ip: {{ . }}
+{{- end}}
+  ports:
+    - name: metrics
+      protocol: TCP
+      port: 9100
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: node-exporter-external
+  labels:
+    k8s-app: node-exporter-external
+  namespace: monitoring
+spec:
+  clusterIP: None
+  ports:
+  - name: metrics
+    port: 9100
+    targetPort: 9100
+  type: ClusterIP
+  selector: null
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    k8s-app: node-exporter-external
+  name: node-exporter-external
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+    - monitoring
+  jobLabel: k8s-app
+  selector:
+    matchLabels:
+      k8s-app: node-exporter-external
+  endpoints:
+  - port: metrics
+    interval: 30s

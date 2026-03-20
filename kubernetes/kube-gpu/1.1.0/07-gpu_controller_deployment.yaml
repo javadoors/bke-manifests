@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gpu-controller
+  namespace: gpu-system
+  labels:
+    control-plane: gpu-controller
+spec:
+  selector:
+    matchLabels:
+      control-plane: gpu-controller
+  replicas: {{.replicas}}
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: gpu-controller
+      labels:
+        control-plane: gpu-controller
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+              topologyKey: "kubernetes.io/hostname"
+      serviceAccountName: gpu-controller
+      volumes:
+        - name: configs
+          configMap:
+            name: controller-config
+            defaultMode: 0666
+        - name: log
+          hostPath:
+            path: /var/log/gpu-controller
+            type: DirectoryOrCreate
+        - name: tz-config
+          hostPath:
+            path: /etc/localtime
+      containers:
+        - command:
+            - /app/kube-gpu
+            - server
+          args:
+            - --log-level=info
+            - --reconciler-period=60
+            - --namespace=$(GPU_NAMESPACE)
+          image: {{ .repo }}kube-gpu:1.1.0
+          imagePullPolicy: IfNotPresent
+          name: gpu-controller
+          volumeMounts:
+            - mountPath: /etc/gpu-controller
+              name: configs
+            - mountPath: /var/log/gpu-controller
+              name: log
+            - name: tz-config
+              mountPath: /etc/localtime
+              readOnly: true
+          env:
+          - name: GPU_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          ports:
+            - containerPort: 8081
+              name: probe
+            - containerPort: 8082
+              name: metrics
+            - containerPort: 8080
+              name: grpc
+            - containerPort: 9443
+              name: controller
+          securityContext:
+            allowPrivilegeEscalation: false
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 10m
+              memory: 64Mi

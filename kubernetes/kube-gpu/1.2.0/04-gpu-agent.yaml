@@ -1,0 +1,584 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gpu-agent
+  namespace: gpu-system
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: agent-role
+rules:
+  - apiGroups:
+      - gpu.bocloud.com
+    resources:
+      - gpunodes
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - gpu.bocloud.com
+    resources:
+      - gpunodes/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - gpu.bocloud.com
+    resources:
+      - gpunodes/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - pods/log
+      - pods/status
+    verbs:
+      - watch
+      - delete
+      - get
+      - list
+      - patch
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - update
+      - get
+      - list
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+      - daemonsets
+      - replicasets
+      - statefulsets
+    verbs:
+      - "*"
+  - apiGroups:
+      - batch.volcano.sh
+    resources:
+      - jobs
+    verbs:
+      - get
+      - list
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: agent-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: agent-role
+subjects:
+  - kind: ServiceAccount
+    name: gpu-agent
+    namespace: gpu-system
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-config
+  namespace: gpu-system
+data:
+  volume.conf: |
+    {
+      "volume": [
+        {
+          "name": "nvidia",
+          "base": "/etc/gpu-agent/vdriver",
+          "mode": "ro",
+          "components": {
+            "binaries": [
+              "nvidia-cuda-mps-control",
+              "nvidia-cuda-mps-server",
+              "nvidia-debugdump",
+              "nvidia-persistenced",
+              "nvidia-smi",
+              "gpu-client",
+              "dl-modprobe"
+            ],
+            "libraries": [
+              "libnvidia-ml.so",
+              "libdlml.so",
+              "libixml.so",
+              "libcndev.so",
+              "libcuda.so",
+              "librocm_smi64.so.2",
+              "libcuda-control.so",
+              "libnvidia-ptxjitcompiler.so",
+              "libnvidia-fatbinaryloader.so",
+              "libnvidia-opencl.so",
+              "libnvidia-compiler.so",
+              "libvdpau_nvidia.so",
+              "libnvidia-encode.so",
+              "libnvcuvid.so",
+              "libnvidia-fbc.so",
+              "libnvidia-ifr.so",
+              "libGL.so",
+              "libGLX.so",
+              "libOpenGL.so",
+              "libGLESv1_CM.so",
+              "libGLESv2.so",
+              "libEGL.so",
+              "libGLdispatch.so",
+              "libGLX_nvidia.so",
+              "libEGL_nvidia.so",
+              "libGLESv2_nvidia.so",
+              "libGLESv1_CM_nvidia.so",
+              "libnvidia-eglcore.so",
+              "libnvidia-egl-wayland.so",
+              "libnvidia-glcore.so",
+              "libnvidia-tls.so",
+              "libnvidia-glsi.so",
+              "libnvidia-opticalflow.so"
+            ]
+          }
+        },
+        {
+          "name": "origin",
+          "base": "/etc/gpu-agent/vdriver",
+          "mode": "ro",
+          "components": {
+            "binaries": [
+              "nvidia-cuda-mps-control",
+              "nvidia-cuda-mps-server",
+              "nvidia-debugdump",
+              "nvidia-persistenced",
+              "nvidia-smi",
+              "dl-modprobe"
+            ],
+            "libraries": [
+              "libnvidia-ml.so",
+              "libdlml.so",
+              "libixml.so",
+              "libcndev.so",
+              "libcuda.so",
+              "librocm_smi64.so.2",
+              "libnvidia-ptxjitcompiler.so",
+              "libnvidia-fatbinaryloader.so",
+              "libnvidia-opencl.so",
+              "libnvidia-compiler.so",
+              "libvdpau_nvidia.so",
+              "libnvidia-encode.so",
+              "libnvcuvid.so",
+              "libnvidia-fbc.so",
+              "libnvidia-ifr.so",
+              "libGL.so",
+              "libGLX.so",
+              "libOpenGL.so",
+              "libGLESv1_CM.so",
+              "libGLESv2.so",
+              "libEGL.so",
+              "libGLdispatch.so",
+              "libGLX_nvidia.so",
+              "libEGL_nvidia.so",
+              "libGLESv2_nvidia.so",
+              "libGLESv1_CM_nvidia.so",
+              "libnvidia-eglcore.so",
+              "libnvidia-egl-wayland.so",
+              "libnvidia-glcore.so",
+              "libnvidia-tls.so",
+              "libnvidia-glsi.so",
+              "libnvidia-opticalflow.so"
+            ]
+          }
+        }
+      ]
+    }
+  copy-bin-lib.sh: |
+
+    #!/bin/bash
+
+    set -o pipefail
+    set -o errexit
+    set -o nounset
+
+    FILE=${FILE:-"/etc/gpu-agent/volume.conf"}
+    LIB_FILES=$(jq -r .volume[1].components.libraries[] ${FILE})
+    BIN_FILES=$(jq -r .volume[1].components.binaries[] ${FILE})
+    readonly NV_DIR="/usr/local/nvidia"
+    readonly FIND_BASE=${FIND_BASE:-"/usr/local/host"}
+
+    function check_arch() {
+      local readonly lib=$1
+      local arch_type=$(/usr/bin/readelf ${lib} | grep -o "elf[[:digit:]]*-.*")
+      case ${arch_type} in
+        "elf64-x86-64")
+          echo "64"
+          ;;
+        "elf32-i386")
+          echo ""
+          ;;
+        "elf64-aarch64")
+          echo "64"
+          ;;
+        *)
+          echo ""
+          ;;
+      esac
+    }
+
+    function copy_lib() {
+      for target in $(find ${FIND_BASE} -name "${1}*" | grep -v "stubs"); do
+        if [[ $(/usr/bin/readelf ${target} 2>/dev/null | grep -o "SONAME") == "SONAME" ]]; then
+          copy_directory ${target} "${NV_DIR}/lib$(check_arch ${target})"
+        fi
+      done
+    }
+
+    function copy_bin() {
+      for target in $(find ${FIND_BASE} -name "${1}"); do
+        if [[ -L ${target} ]]; then
+          echo "${target} is symlink"
+          continue
+        fi
+        if [[ "${1}" = "dl-modprobe" ]]; then
+           copy_directory ${target} "/usr/bin/"
+           continue
+        fi
+        copy_directory ${target} "${NV_DIR}/bin/"
+      done
+    }
+
+    function copy_directory() {
+      local readonly lib=$1
+      local readonly path=$2
+
+      echo "copy ${lib} to ${path}"
+      cp -Pf "${lib}" "${path}"
+    }
+
+    rm -rf ${NV_DIR}
+    mkdir -p ${NV_DIR}/{bin,lib,lib64}
+
+    for file in ${LIB_FILES[@]}; do
+      copy_lib ${file}
+    done
+
+    for file in ${BIN_FILES[@]}; do
+      copy_bin ${file}
+    done
+
+    # fix libvdpau_nvidia.so
+    (
+      cd ${NV_DIR}/lib
+      rm -rf libvdpau_nvidia.so
+      rel_path=$(readlink -f libvdpau_nvidia.so.1)
+      ln -s $(basename ${rel_path}) libvdpau_nvidia.so
+    )
+
+    (
+      cd ${NV_DIR}/lib64
+      rm -rf libvdpau_nvidia.so
+      rel_path=$(readlink -f libvdpau_nvidia.so.1)
+      ln -s $(basename ${rel_path}) libvdpau_nvidia.so
+    )
+
+    # fix libnvidia-ml.so
+    (
+      cd ${NV_DIR}/lib
+      rm -rf libnvidia-ml.so
+      rel_path=$(readlink -f libnvidia-ml.so.1)
+      ln -s $(basename ${rel_path}) libnvidia-ml.so
+    )
+
+    (
+      cd ${NV_DIR}/lib64
+      rm -rf libnvidia-ml.so
+      rel_path=$(readlink -f libnvidia-ml.so.1)
+      ln -s $(basename ${rel_path}) libnvidia-ml.so
+    )
+
+  ld.sh: |
+    #!/bin/bash
+
+    set -o errexit
+    set -o pipefail
+    set -o nounset
+
+    source /etc/gpu-agent/copy-bin-lib.sh
+
+    echo "rebuild ldcache"
+    ldconfig -f /etc/ld.so.conf
+    echo "ld ok"
+  start.sh: |
+    #!/bin/bash
+    /etc/gpu-agent/ld.sh
+    /usr/bin/gpu-agent --metrics-addr=:32133
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: gpu-agent-metric
+  namespace: gpu-system
+  annotations:
+    prometheus.io/scrape: "true"
+  labels:
+    kubernetes.io/cluster-service: "true"
+    name: gpu-agent-metric
+spec:
+  type: ClusterIP
+  ports:
+    - name: metrics
+      port: 32133
+      protocol: TCP
+      targetPort: 32133
+    - name: grpc
+      port: 32134
+      protocol: TCP
+      targetPort: 32134
+    - name: vgpu
+      port: 32135
+      protocol: TCP
+      targetPort: 32135
+  selector:
+    name: gpu-agent
+---
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: gpu-agent
+  namespace: gpu-system
+spec:
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      name: gpu-agent
+  template:
+    metadata:
+      annotations:
+        beyondac.admission.kubernetes.io/exclude: "true"
+        beyondac.admission.kubernetes.io/mutator-exclude: "true"
+      labels:
+        name: gpu-agent
+    spec:
+      hostNetwork: false
+      containers:
+        - command:
+            - /etc/gpu-agent/start.sh
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: LD_LIBRARY_PATH
+              value: "/usr/local/nvidia/lib64/:/usr/local/nvidia/lib/:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64/common"
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+          image: {{.repo}}gpu-agent:v1.2.0 #registry.cn-hangzhou.aliyuncs.com/bocloud/gpu-agent:v1.2.0
+          imagePullPolicy: Always
+          name: gpu-agent
+          ports:
+            - containerPort: 32133
+              protocol: TCP
+              name: metric
+            - containerPort: 32134
+              protocol: TCP
+              name: grpc
+            - containerPort: 32135
+              protocol: TCP
+              name: vgpu
+          resources:
+            limits:
+              cpu: 4
+              memory: 5Gi
+            requests:
+              cpu: 200m
+              memory: 256Mi
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /etc/os-release
+              name: host-etc-release
+            - mountPath: /var/lib/kubelet/device-plugins
+              name: device-plugin
+            - mountPath: /var/run
+              name: run-dir
+            - name: config
+              mountPath: /etc/gpu-config
+            - mountPath: /usr/local/host
+              name: usr-directory
+              readOnly: true
+            - mountPath: /etc/gpu-agent
+              name: configs
+            - mountPath: /etc/gpu-agent/vm
+              name: vmdata
+            - mountPath: /etc/gpu-agent/checkpoint
+              name: checkpoint
+            - mountPath: /etc/gpu-agent/vdriver
+              name: vdriver
+            - mountPath: /etc/vdev
+              name: vdev
+            - mountPath: /sys/fs/cgroup
+              name: cgroup
+              readOnly: true
+            - name: ascend-driver
+              mountPath: /usr/local/Ascend/driver
+            - name: dshm
+              mountPath: /dev/shm
+      dnsPolicy: ClusterFirst
+      hostPID: true
+      priorityClassName: system-node-critical
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccountName: gpu-agent
+      terminationGracePeriodSeconds: 30
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - effect: NoSchedule
+          key: bocloud.com/vcuda-core
+          operator: Exists
+      volumes:
+        - hostPath:
+            path: /etc/os-release
+          name: host-etc-release
+        - hostPath:
+            path: /var/lib/kubelet/device-plugins
+            type: Directory
+          name: device-plugin
+        - hostPath:
+            path: /var/run
+            type: Directory
+          name: run-dir
+        - hostPath:
+            path: /usr
+            type: Directory
+          name: usr-directory
+        - name: config
+          configMap:
+            name: gpu-custom-config
+        - name: configs
+          configMap:
+            name: agent-config
+            defaultMode: 0777
+        - hostPath:
+            path: /etc/gpu-agent/vm
+            type: DirectoryOrCreate
+          name: vmdata
+        - hostPath:
+            path: /etc/gpu-agent/checkpoint
+            type: DirectoryOrCreate
+          name: checkpoint
+        - hostPath:
+            path: /etc/gpu-agent/vdriver
+            type: DirectoryOrCreate
+          name: vdriver
+        - hostPath:
+            path: /etc/vdev
+            type: DirectoryOrCreate
+          name: vdev
+        - hostPath:
+            path: /sys/fs/cgroup
+            type: Directory
+          name: cgroup
+        - name: ascend-driver
+          hostPath:
+            path: /usr/local/Ascend/driver
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: "2Gi"  # 设置共享内存的大小为 2G
+---
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    name: gpu-agent-metric
+  name: gpu-agent-metric
+  namespace: gpu-system
+spec:
+  endpoints:
+    - interval: 30s
+      path: /metrics
+      port: metrics
+      relabelings:
+        - action: replace
+          regex: (.*)
+          replacement: $1
+          sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: instance
+        - action: replace
+          sourceLabels: [__meta_kubernetes_pod_controller_name]
+          regex: (.*)
+          targetLabel: pod #replace different pod name
+          replacement: ${1}
+      scheme: http
+  selector:
+    matchLabels:
+      name: gpu-agent-metric

@@ -1,0 +1,210 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    rbac.authorization.kubernetes.io/autoupdate: "true"
+  labels:
+    kubernetes.io/bootstrapping: rbac-defaults
+  name: helm-controller
+rules:
+- apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - '*'
+- nonResourceURLs:
+  - '*'
+  verbs:
+  - '*'
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: helm-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: helm-controller
+subjects:
+- kind: ServiceAccount
+  name: helm-controller
+  namespace: kube-system
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: helm-controller
+  namespace: kube-system
+  annotations:
+    meta.helm.sh/release-name: helm-controller
+    meta.helm.sh/release-namespace: kube-system
+  labels:
+    app.kubernetes.io/instance: helm-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: helm-controller
+    app.kubernetes.io/version: 1.6.0
+    helm.sh/chart: helm-controller-1.6.0
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/instance: helm-controller
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: helm-controller
+    app.kubernetes.io/version: 1.6.0
+    helm.sh/chart: helm-controller-1.6.0
+  name: helm-controller
+  namespace: kube-system
+spec:
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+    type: RollingUpdate
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: helm-controller
+      app.kubernetes.io/name: helm-controller
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: helm-controller
+        app.kubernetes.io/name: helm-controller
+    spec:
+      containers:
+      - args:
+        - --zap-devel=true
+        - --job-image={{ .repo }}helm-install:1.6.12
+        - --job-image-pull-policy=IfNotPresent
+        - --job-requests-cpu=50m
+        - --job-requests-memory=64Mi
+        - --job-limits-cpu=100m
+        - --job-limits-memory=128Mi
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        - name: OPERATOR_NAME
+          value: helm-controller
+        image: {{ .repo }}helm-controller:1.6.12
+        imagePullPolicy: IfNotPresent
+        name: helm-controller
+        resources:
+          limits:
+            cpu: 100m
+            memory: 128Mi
+          requests:
+            cpu: 50m
+            memory: 64Mi
+        securityContext: {}
+      securityContext: {}
+      serviceAccount: helm-controller
+      serviceAccountName: helm-controller
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: helmreleases.helm.bocloud.com
+spec:
+  additionalPrinterColumns:
+  - JSONPath: .status.jobName
+    description: The name of job to install chart
+    name: JobName
+    type: string
+  - JSONPath: .status.status
+    description: The status of job
+    name: Status
+    type: string
+  - JSONPath: .metadata.creationTimestamp
+    description: The createTimestamp of job
+    name: Age
+    type: date
+  group: helm.bocloud.com
+  names:
+    kind: HelmRelease
+    listKind: HelmReleaseList
+    plural: helmreleases
+    shortNames:
+    - hr
+    singular: helmrelease
+  scope: Namespaced
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      description: HelmRelease is the Schema for the helmcharts API
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: HelmReleaseSpec defines the desired state of HelmRelease
+          properties:
+            chart:
+              description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+                Important: Run "operator-sdk generate k8s" to regenerate code after
+                modifying this file Add custom validation using kubebuilder tags:
+                https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html'
+              type: string
+            credentialSecretName:
+              type: string
+            ignore:
+              type: boolean
+            repo:
+              type: string
+            set:
+              additionalProperties:
+                type: string
+              type: object
+            timeout:
+              exclusiveMinimum: true
+              format: int64
+              maximum: 1000
+              minimum: 0
+              type: integer
+            tlsSecretName:
+              type: string
+            valuesContent:
+              type: string
+            version:
+              type: string
+          type: object
+        status:
+          description: HelmReleaseStatus defines the observed state of HelmRelease
+          properties:
+            completionTime:
+              format: date-time
+              type: string
+            jobName:
+              type: string
+            startTime:
+              format: date-time
+              type: string
+            status:
+              type: string
+          type: object
+      type: object
+  version: v1
+  versions:
+  - name: v1
+    served: true
+    storage: true

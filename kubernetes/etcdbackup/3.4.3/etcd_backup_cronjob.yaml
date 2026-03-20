@@ -1,0 +1,74 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: etcd-backup
+  namespace: kube-system
+spec:
+  schedule: "0 0 * * *"
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: etcd-backup
+            image: {{ .repo }}etcd-backup:3.4.3
+            imagePullPolicy: IfNotPresent
+            env:
+            - name: ETCDCTL_API
+              value: "3"
+            - name: ENDPOINTS
+              value: "{{ .etcdEndpoints }}"
+            - name: RESERVEDNUM
+              value: "30"
+            volumeMounts:
+            - mountPath: /etc/kubernetes/pki/etcd
+              name: etcd-certs
+              readOnly: true
+            - mountPath: /backup
+              name: backup
+            - name: localtime
+              mountPath: /etc/localtime
+              readOnly: true
+          tolerations:
+            - key: "node.kubernetes.io/unschedulable"
+              operator: "Exists"
+              effect: "NoSchedule"
+          affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                    - matchExpressions:
+                      - key: node-role.kubernetes.io/master
+                        operator: Exists
+          restartPolicy: OnFailure
+          hostNetwork: true
+          volumes:
+          - name: etcd-certs
+            secret:
+              defaultMode: 420
+              secretName: etcd-backup-secrets
+          - name: backup
+            hostPath:
+              path: {{ .backupDir }}
+              type: DirectoryOrCreate
+          - name: localtime
+            hostPath:
+              path: /etc/localtime
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    k8s-app: kube-etcd
+  name: kube-etcd
+  namespace: kube-system
+spec:
+  clusterIP: None
+  selector:
+    component: etcd
+    tier: control-plane
+  ports:
+    - protocol: TCP
+      port: 2379
+      targetPort: 2379

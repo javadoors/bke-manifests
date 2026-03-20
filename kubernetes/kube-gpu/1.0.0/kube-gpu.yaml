@@ -1,0 +1,910 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.7.0
+  creationTimestamp: null
+  name: gpunodes.bocloud.com
+spec:
+  group: bocloud.com
+  names:
+    kind: GPUNode
+    listKind: GPUNodeList
+    plural: gpunodes
+    singular: gpunode
+  scope: Namespaced
+  versions:
+    - additionalPrinterColumns:
+        - jsonPath: .status.phase
+          name: Phase
+          type: string
+        - jsonPath: .status.message
+          name: Message
+          priority: 1
+          type: string
+        - jsonPath: .status.lastSyncTime
+          name: LastSync
+          priority: 1
+          type: string
+        - jsonPath: .metadata.creationTimestamp
+          name: Age
+          type: date
+      name: v1beta1
+      schema:
+        openAPIV3Schema:
+          description: GPUNode is the Schema for the gpunodes API
+          properties:
+            apiVersion:
+              description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+              type: string
+            kind:
+              description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: GPUNodeSpec defines the desired state of GPUNode
+              properties:
+                runtime:
+                  description: Runtime spec the behavior of GPUMaintainer
+                  properties:
+                    autoRestart:
+                      description: AutoRestart spec the switch of restart container-cri
+                      enum:
+                        - true
+                        - false
+                      type: boolean
+                  type: object
+              required:
+                - runtime
+              type: object
+            status:
+              description: GPUNodeStatus defines the observed state of GPUNode
+              properties:
+                devices:
+                  description: Devices is the array of node gpu devices
+                  items:
+                    description: GPUDeviceInfo represent the info of GPUDevice
+                    properties:
+                      capacity:
+                        description: Capacity
+                        items:
+                          description: GPUResourceCapacity represent the capacity of
+                            GPUDevice register to node
+                          properties:
+                            name:
+                              description: Name
+                              type: string
+                            value:
+                              description: Value
+                              type: integer
+                          required:
+                            - value
+                          type: object
+                        type: array
+                      device:
+                        description: Device represent the deviceId of device
+                        type: string
+                      name:
+                        description: Name represent the index of device
+                        type: string
+                      pcieID:
+                        description: PcieID the pcie slot id of physical card,
+                        type: string
+                      productInfo:
+                        description: ProductInfo
+                        properties:
+                          memory:
+                            anyOf:
+                              - type: integer
+                              - type: string
+                            description: Memory represent the memory of GPU-like product
+                            pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                            x-kubernetes-int-or-string: true
+                          mode:
+                            description: Mode represent the running mode of GPUProduct
+                              if it's vendor is nvidia
+                            enum:
+                              - MIG
+                              - VGPU
+                              - MPS
+                              - Unknown
+                            type: string
+                          name:
+                            description: Name represent the name of product
+                            type: string
+                        type: object
+                      uuid:
+                        description: UUID represent the uuid of device
+                        type: string
+                      vendor:
+                        description: Vendor represent the vendorId of device
+                        type: string
+                    type: object
+                  type: array
+                lastSyncTime:
+                  description: LastSyncTime
+                  format: date-time
+                  type: string
+                message:
+                  description: Message is a message about the current status of the
+                    GPUNode.
+                  type: string
+                phase:
+                  description: Phase represent the current state of GPUNode
+                  enum:
+                    - New
+                    - Ready
+                    - NotReady
+                    - InProgress
+                    - InValid
+                  type: string
+                system:
+                  description: System is a message about the systemInfo of the GPUNode.
+                  properties:
+                    arch:
+                      description: Arch represent the os arch
+                      type: string
+                    os:
+                      description: OS represent the os serial
+                      type: string
+                    version:
+                      description: Version represent the os version
+                      type: string
+                  type: object
+              required:
+                - phase
+              type: object
+          type: object
+      served: true
+      storage: true
+      subresources:
+        status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    control-plane: gpu-controller
+  name: gpu-system
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: controller-config
+  namespace: gpu-system
+data:
+  maintainer-rule.yaml: |
+    # maintainer 配置规则
+    maintainer:
+      - type: "driver"                   #给哪个maintainer读取用的
+        imageRepo: ""                    #镜像公用前缀
+        arch-support:                    #支持的架构,如架构不匹配将导致当前maintainer返回invalid
+          - "amd64"
+          - "arm64"
+        vendor-support:                  #支持的产品，如产品不支持将导致当前maintainer被skip
+          - "NVIDIA"
+          - "ASCEND"
+        images:                          #不同vendor下的不同镜像
+          - name: "driver-maintainer"      #镜像name
+            tag: "1.0.0"                   #镜像版本
+            vendor: "NVIDIA"               #适用vendor (正则)
+        mountPath:                       #额外挂载信息
+          - host: "/root/binary/Linux.run" #主机目录
+            path: "/driver.run"            #容器目录
+            node: ".*"                     #适用节点 (正则)  
+          - host: "/etc/os-release"
+            path: "/etc/os-release"
+            node: ".*"
+          - host: "/lib/modules"
+            path: "/lib/modules"
+            node: ".*"
+          - host: "/dev"
+            path: "/dev/host"
+            node: ".*"
+          - host: "/usr/src"
+            path: "/usr/src"
+            node: ".*"
+          - host: "/usr"
+            path: "/usr/host"
+            node: ".*"
+          - host: "/var/log"
+            path: "/var/log"
+            node: ".*"
+  
+
+  reconciler-rule.yaml: |
+    capacity:
+      - vendor: "NVIDIA"
+        name: "vcuda-rule"
+        rules:
+          - type: "VGPU"
+            key: "bocloud.com/vcuda-core"
+            value: 100
+          - type: "VGPU"
+            key: "bocloud.com/vcuda-memory"
+            valueFrom:
+              key: ".productInfo.memory"       # jsonpath
+          - type: "MIG"
+            keyFrom:
+              key: ".name"                       # jsonpath
+            value: 1
+  vendors.yaml: |
+    vendors:
+      - name: "NVIDIA"
+        cardType: "GPU"
+        id: "10DE"
+      - name: "ASCEND"
+        cardType: "NPU"
+        id: "19E5"
+      - name: "HYGON"
+        cardType: "DCU"
+        id: "1D94"
+      - name: "AMD"
+        cardType: "GPU"
+        id: "1002"
+
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: controller-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: controller-role
+subjects:
+  - kind: ServiceAccount
+    name: gpu-controller
+    namespace: gpu-system
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: controller-role
+rules:
+  - apiGroups:
+      - batch
+    resources:
+      - job
+      - jobs
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - bocloud.com
+    resources:
+      - gpunodes
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - bocloud.com
+    resources:
+      - gpunodes/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - bocloud.com
+    resources:
+      - gpunodes/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - pods/log
+      - pods/status
+    verbs:
+      - watch
+      - delete
+      - get
+      - list
+      - patch
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - update
+      - get
+      - list
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+      - daemonsets
+      - replicasets
+      - statefulsets
+    verbs:
+      - "*"
+  - apiGroups:
+      - batch.volcano.sh
+    resources:
+      - jobs
+    verbs:
+      - get
+      - list
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gpu-controller
+  namespace: gpu-system
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: agent-config
+  namespace: gpu-system
+data:
+  extra-config.json: |
+    {}
+  volume.conf: |
+    {
+      "volume": [
+        {
+          "name": "nvidia",
+          "base": "/etc/gpu-agent/vdriver",
+          "mode": "ro",
+          "components": {
+            "binaries": [
+              "nvidia-cuda-mps-control",
+              "nvidia-cuda-mps-server",
+              "nvidia-debugdump",
+              "nvidia-persistenced",
+              "nvidia-smi",
+              "gpu-client"
+            ],
+            "libraries": [
+              "libnvidia-ml.so",
+              "libcuda.so",
+              "libcuda-control.so",
+              "libnvidia-ptxjitcompiler.so",
+              "libnvidia-fatbinaryloader.so",
+              "libnvidia-opencl.so",
+              "libnvidia-compiler.so",
+              "libvdpau_nvidia.so",
+              "libnvidia-encode.so",
+              "libnvcuvid.so",
+              "libnvidia-fbc.so",
+              "libnvidia-ifr.so",
+              "libGL.so",
+              "libGLX.so",
+              "libOpenGL.so",
+              "libGLESv1_CM.so",
+              "libGLESv2.so",
+              "libEGL.so",
+              "libGLdispatch.so",
+              "libGLX_nvidia.so",
+              "libEGL_nvidia.so",
+              "libGLESv2_nvidia.so",
+              "libGLESv1_CM_nvidia.so",
+              "libnvidia-eglcore.so",
+              "libnvidia-egl-wayland.so",
+              "libnvidia-glcore.so",
+              "libnvidia-tls.so",
+              "libnvidia-glsi.so",
+              "libnvidia-opticalflow.so"
+            ]
+          }
+        },
+        {
+          "name": "origin",
+          "base": "/etc/gpu-agent/vdriver",
+          "mode": "ro",
+          "components": {
+            "binaries": [
+              "nvidia-cuda-mps-control",
+              "nvidia-cuda-mps-server",
+              "nvidia-debugdump",
+              "nvidia-persistenced",
+              "nvidia-smi"
+            ],
+            "libraries": [
+              "libnvidia-ml.so",
+              "libcuda.so",
+              "libnvidia-ptxjitcompiler.so",
+              "libnvidia-fatbinaryloader.so",
+              "libnvidia-opencl.so",
+              "libnvidia-compiler.so",
+              "libvdpau_nvidia.so",
+              "libnvidia-encode.so",
+              "libnvcuvid.so",
+              "libnvidia-fbc.so",
+              "libnvidia-ifr.so",
+              "libGL.so",
+              "libGLX.so",
+              "libOpenGL.so",
+              "libGLESv1_CM.so",
+              "libGLESv2.so",
+              "libEGL.so",
+              "libGLdispatch.so",
+              "libGLX_nvidia.so",
+              "libEGL_nvidia.so",
+              "libGLESv2_nvidia.so",
+              "libGLESv1_CM_nvidia.so",
+              "libnvidia-eglcore.so",
+              "libnvidia-egl-wayland.so",
+              "libnvidia-glcore.so",
+              "libnvidia-tls.so",
+              "libnvidia-glsi.so",
+              "libnvidia-opticalflow.so"
+            ]
+          }
+        }
+      ]
+    }
+  copy-bin-lib.sh: |
+    #!/bin/bassh
+
+    set -o pipefail
+    set -o errexit
+    set -o nounset
+
+    FILE=${FILE:-"/etc/gpu-agent/volume.conf"}
+    LIB_FILES=$(jq -r .volume[1].components.libraries[] ${FILE})
+    BIN_FILES=$(jq -r .volume[1].components.binaries[] ${FILE})
+    readonly NV_DIR="/usr/local/nvidia"
+    readonly FIND_BASE=${FIND_BASE:-"/usr/local/host"}
+
+    function check_arch() {
+      local readonly lib=$1
+      if [[ $(objdump -f ${lib} | grep -o "elf64-x86-64") == "elf64-x86-64" ]]; then
+        echo "64"
+      else
+        echo ""
+      fi
+    }
+
+    function copy_lib() {
+      for target in $(find ${FIND_BASE} -name "${1}*" | grep -v "stubs"); do
+        if [[ $(objdump -p ${target} 2>/dev/null | grep -o "SONAME") == "SONAME" ]]; then
+          copy_directory ${target} "${NV_DIR}/lib$(check_arch ${target})"
+        fi
+      done
+    }
+
+    function copy_bin() {
+      for target in $(find ${FIND_BASE} -name "${1}"); do
+        if [[ -L ${target} ]]; then
+          echo "${target} is symlink"
+          continue
+        fi
+        copy_directory ${target} "${NV_DIR}/bin/"
+      done
+    }
+
+    function copy_directory() {
+      local readonly lib=$1
+      local readonly path=$2
+
+      echo "copy ${lib} to ${path}"
+      cp -Pf "${lib}" "${path}"
+    }
+
+    rm -rf ${NV_DIR}
+    mkdir -p ${NV_DIR}/{bin,lib,lib64}
+
+    for file in ${LIB_FILES[@]}; do
+      copy_lib ${file}
+    done
+
+    for file in ${BIN_FILES[@]}; do
+      copy_bin ${file}
+    done
+
+    # fix libvdpau_nvidia.so
+    (
+      cd ${NV_DIR}/lib
+      rm -rf libvdpau_nvidia.so
+      rel_path=$(readlink -f libvdpau_nvidia.so.1)
+      ln -s $(basename ${rel_path}) libvdpau_nvidia.so
+    )
+
+    (
+      cd ${NV_DIR}/lib64
+      rm -rf libvdpau_nvidia.so
+      rel_path=$(readlink -f libvdpau_nvidia.so.1)
+      ln -s $(basename ${rel_path}) libvdpau_nvidia.so
+    )
+
+    # fix libnvidia-ml.so
+    (
+      cd ${NV_DIR}/lib
+      rm -rf libnvidia-ml.so
+      rel_path=$(readlink -f libnvidia-ml.so.1)
+      ln -s $(basename ${rel_path}) libnvidia-ml.so
+    )
+
+    (
+      cd ${NV_DIR}/lib64
+      rm -rf libnvidia-ml.so
+      rel_path=$(readlink -f libnvidia-ml.so.1)
+      ln -s $(basename ${rel_path}) libnvidia-ml.so
+    )
+
+  ld.sh: |
+    #!/bin/bash
+
+    set -o errexit
+    set -o pipefail
+    set -o nounset
+
+    source /etc/gpu-agent/copy-bin-lib.sh
+
+    echo "rebuild ldcache"
+    /usr/glibc-compat/sbin/ldconfig -f /etc/ld.so.conf
+    echo "ld ok"
+  start.sh: |
+    #!/bin/bash
+    /etc/gpu-agent/ld.sh
+    /app/kube-gpu agent --extra-config=/etc/gpu-agent/extra-config.json \
+          - --v=${LOG_LEVEL} \
+          - --hostname-override=${NODE_NAME} \
+          - --namespace=${NameSpace} \
+          - --share-mode=true \
+          - --volume-config=/etc/gpu-agent/volume.conf \
+          - --log-dir=/var/log/gpu-agent \
+          - --query-addr=0.0.0.0 \
+          - --logtostderr=false \
+          - --cgroup-driver=systemd \
+          - --container-runtime-endpoint={{ .criSock }}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gpu-controller
+  namespace: gpu-system
+  labels:
+    control-plane: gpu-controller
+spec:
+  selector:
+    matchLabels:
+      control-plane: gpu-controller
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: gpu-controller
+      labels:
+        control-plane: gpu-controller
+    spec:
+      serviceAccountName: gpu-controller
+      volumes:
+        - name: configs
+          configMap:
+            name: controller-config
+            defaultMode: 0666
+        - name: log
+          hostPath:
+            path: /var/log/gpu-controller
+            type: DirectoryOrCreate
+        - name: tz-config
+          hostPath:
+            path: /etc/localtime
+      containers:
+        - command:
+            - /app/kube-gpu
+            - server
+          args:
+            - --log-level=info
+            - --reconciler-period=60
+            - --namespace=$(GPU_NAMESPACE)
+          image: {{ .repo }}kube-gpu:1.0.0
+          imagePullPolicy: IfNotPresent
+          name: gpu-controller
+          volumeMounts:
+            - mountPath: /etc/gpu-controller
+              name: configs
+            - mountPath: /var/log/gpu-controller
+              name: log
+            - name: tz-config
+              mountPath: /etc/localtime
+              readOnly: true
+          env:
+            - name: GPU_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          ports:
+            - containerPort: 8081
+              name: probe
+            - containerPort: 8082
+              name: metrics
+            - containerPort: 8080
+              name: grpc
+            - containerPort: 9443
+              name: controller
+          securityContext:
+            allowPrivilegeEscalation: false
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 10m
+              memory: 64Mi
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: gpu-agent
+  namespace: gpu-system
+spec:
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      name: gpu-agent
+  template:
+    metadata:
+      annotations:
+        beyondac.admission.kubernetes.io/exclude: "true"
+        beyondac.admission.kubernetes.io/mutator-exclude: "true"
+        prometheus.io/port: "5678"
+        prometheus.io/scrape: "true"
+      creationTimestamp: null
+      labels:
+        name: gpu-agent
+    spec:
+      containers:
+        - command:
+            - /etc/gpu-agent/start.sh
+          env:
+            - name: LOG_LEVEL
+              value: "1"
+            - name: NameSpace
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+            - name: LD_LIBRARY_PATH
+              value: "/usr/local/nvidia/lib64/:/usr/local/nvidia/lib/"
+          image: {{ .repo }}kube-gpu:1.0.0
+          imagePullPolicy: IfNotPresent
+          name: gpu-agent
+          ports:
+            - containerPort: 5678
+              protocol: TCP
+          resources:
+            limits:
+              cpu: 400m
+              memory: 512Mi
+            requests:
+              cpu: 200m
+              memory: 256Mi
+          securityContext:
+            privileged: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /etc/os-release
+              name: host-etc-release
+            - mountPath: /var/lib/kubelet/device-plugins
+              name: device-plugin
+            - mountPath: /etc/gpu-agent/vdriver
+              name: vdriver
+            - mountPath: /etc/gpu-agent
+              name: configs
+            - mountPath: /etc/gpu-agent/vm
+              name: vmdata
+            - mountPath: /var/log/gpu-agent
+              name: log
+            - mountPath: /etc/gpu-agent/checkpoint
+              name: checkpoint
+            - mountPath: /var/run
+              name: run-dir
+            - mountPath: /sys/fs/cgroup
+              name: cgroup
+              readOnly: true
+            - mountPath: /usr/local/host
+              name: usr-directory
+              readOnly: true
+      dnsPolicy: ClusterFirstWithHostNet
+      hostPID: true
+      nodeSelector:
+        gpu-device-enable: enable
+      priorityClassName: system-node-critical
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccountName: gpu-controller
+      terminationGracePeriodSeconds: 30
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - effect: NoSchedule
+          key: bocloud.com/vcuda-core
+          operator: Exists
+      volumes:
+        - hostPath:
+            path: /etc/os-release
+          name: host-etc-release
+        - hostPath:
+            path: {{.kubeletDataRoot}}/device-plugins
+            type: Directory
+          name: device-plugin
+        - hostPath:
+            path: /etc/gpu-agent/vm
+            type: DirectoryOrCreate
+          name: vmdata
+        - hostPath:
+            path: /etc/gpu-agent/vdriver
+            type: DirectoryOrCreate
+          name: vdriver
+        - name: configs
+          configMap:
+            name: agent-config
+            defaultMode: 0777
+        - hostPath:
+            path: /var/log/gpu-agent
+            type: DirectoryOrCreate
+          name: log
+        - hostPath:
+            path: /etc/gpu-agent/checkpoint
+            type: DirectoryOrCreate
+          name: checkpoint
+        - hostPath:
+            path: /var/run
+            type: Directory
+          name: run-dir
+        - hostPath:
+            path: /sys/fs/cgroup
+            type: Directory
+          name: cgroup
+        - hostPath:
+            path: /usr
+            type: Directory
+          name: usr-directory
+  updateStrategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+    type: RollingUpdate
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gpu-agent-metric
+  namespace: gpu-system
+  annotations:
+    prometheus.io/scrape: "true"
+  labels:
+    kubernetes.io/cluster-service: "true"
+    name: gpu-agent-metric
+spec:
+  clusterIP: None
+  ports:
+    - name: metric
+      port: 5678
+      protocol: TCP
+      targetPort: 5678
+  selector:
+    name: gpu-agent
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    control-plane: gpu-controller
+  name: gpu-controller-service
+  namespace: gpu-system
+spec:
+  type: ClusterIP
+  ports:
+    - name: grpc
+      port: 8080
+      protocol: TCP
+      targetPort: grpc
+  selector:
+    control-plane: gpu-controller
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    name: gpu-agent-metric
+  name: gpu-agent-metric
+  namespace: gpu-system
+spec:
+  endpoints:
+    - interval: 30s
+      path: /metric
+      port: metric
+      relabelings:
+        - action: replace
+          regex: (.*)
+          replacement: $1
+          sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: instance
+        - action: replace
+          sourceLabels: [__meta_kubernetes_pod_controller_name]
+          regex: (.*)
+          targetLabel: pod #replace different pod name
+          replacement: ${1}
+      scheme: http
+  selector:
+    matchLabels:
+      name: gpu-agent-metric

@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubectl
+  namespace: kube-system
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubectl-rolebinding
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: kubectl
+    namespace: kube-system
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubectl
+  namespace: kube-system
+spec:
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: kubectl
+  replicas: {{ .replicas }}
+  template:
+    metadata:
+      labels:
+        app: kubectl
+    spec:
+      serviceAccountName: kubectl
+      hostNetwork: true
+      containers:
+        - name: kubectl
+          image: {{ .repo }}kubectl:v1.21.4
+          stdin: true
+          tty: true

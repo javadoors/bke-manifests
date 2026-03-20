@@ -1,0 +1,152 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: gpu-agent
+  namespace: gpu-system
+spec:
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      name: gpu-agent
+  template:
+    metadata:
+      annotations:
+        beyondac.admission.kubernetes.io/exclude: "true"
+        beyondac.admission.kubernetes.io/mutator-exclude: "true"
+        prometheus.io/port: "5678"
+        prometheus.io/scrape: "true"
+      creationTimestamp: null
+      labels:
+        name: gpu-agent
+    spec:
+      containers:
+      - command:
+          - /etc/gpu-agent/start.sh
+        env:
+        - name: KLOG_LEVEL
+          value: "1"
+        - name: LOG_LEVEL
+          value: "info"
+        - name: NameSpace
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: spec.nodeName
+        - name: LD_LIBRARY_PATH
+          value: "/usr/local/nvidia/lib64/:/usr/local/nvidia/lib/:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64/common"
+        image: {{ .repo }}kube-gpu:1.1.0
+        imagePullPolicy: IfNotPresent
+        name: gpu-agent
+        ports:
+        - containerPort: 5678
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 400m
+            memory: 512Mi
+          requests:
+            cpu: 200m
+            memory: 256Mi
+        securityContext:
+          privileged: true
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /etc/os-release
+          name: host-etc-release
+        - mountPath: /var/lib/kubelet/device-plugins
+          name: device-plugin
+        - mountPath: /etc/gpu-agent/vdriver
+          name: vdriver
+        - mountPath: /etc/gpu-agent
+          name: configs
+        - mountPath: /etc/gpu-agent/vm
+          name: vmdata
+        - mountPath: /etc/vdev
+          name: vdev
+        - mountPath: /var/log/gpu-agent
+          name: log
+        - mountPath: /etc/gpu-agent/checkpoint
+          name: checkpoint
+        - mountPath: /var/run
+          name: run-dir
+        - mountPath: /sys/fs/cgroup
+          name: cgroup
+          readOnly: true
+        - mountPath: /usr/local/host
+          name: usr-directory
+          readOnly: true
+        - name: ascend-driver
+          mountPath: /usr/local/Ascend/driver
+      dnsPolicy: ClusterFirst
+      hostPID: true
+      nodeSelector:
+        gpu-device-enable: enable
+      priorityClassName: system-node-critical
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccountName: gpu-controller
+      terminationGracePeriodSeconds: 30
+      tolerations:
+      - key: CriticalAddonsOnly
+        operator: Exists
+      - effect: NoSchedule
+        key: bocloud.com/vcuda-core
+        operator: Exists
+      volumes:
+        - hostPath:
+            path: /etc/os-release
+          name: host-etc-release
+        - hostPath:
+            path: /var/lib/kubelet/device-plugins
+            type: Directory
+          name: device-plugin
+        - hostPath:
+            path: /etc/gpu-agent/vm
+            type: DirectoryOrCreate
+          name: vmdata
+        - hostPath:
+            path: /etc/gpu-agent/vdriver
+            type: DirectoryOrCreate
+          name: vdriver
+        - hostPath:
+            path: /etc/vdev
+            type: DirectoryOrCreate
+          name: vdev
+        - name: configs
+          configMap:
+              name: agent-config
+              defaultMode: 0777
+        - hostPath:
+            path: /var/log/gpu-agent
+            type: DirectoryOrCreate
+          name: log
+        - hostPath:
+            path: /etc/gpu-agent/checkpoint
+            type: DirectoryOrCreate
+          name: checkpoint
+        - hostPath:
+            path: /var/run
+            type: Directory
+          name: run-dir
+        - hostPath:
+            path: /sys/fs/cgroup
+            type: Directory
+          name: cgroup
+        - hostPath:
+            path: /usr
+            type: Directory
+          name: usr-directory
+        - name: ascend-driver
+          hostPath:
+            path: /usr/local/Ascend/driver
+  updateStrategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+    type: RollingUpdate

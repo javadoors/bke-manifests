@@ -1,0 +1,496 @@
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gpu-controller
+  namespace: gpu-system
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: controller-role
+rules:
+  - apiGroups:
+      - batch
+    resources:
+      - job
+      - jobs
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - gpu.bocloud.com
+    resources:
+      - gpunodes
+    verbs:
+      - create
+      - delete
+      - get
+      - list
+      - patch
+      - update
+      - watch
+  - apiGroups:
+      - gpu.bocloud.com
+    resources:
+      - gpunodes/finalizers
+    verbs:
+      - update
+  - apiGroups:
+      - gpu.bocloud.com
+    resources:
+      - gpunodes/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - pods/log
+      - pods/status
+    verbs:
+      - watch
+      - delete
+      - get
+      - list
+      - patch
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - update
+      - get
+      - list
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+      - secrets
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+      - apps
+    resources:
+      - deployments
+      - daemonsets
+      - replicasets
+      - statefulsets
+    verbs:
+      - "*"
+  - apiGroups:
+      - batch.volcano.sh
+    resources:
+      - jobs
+    verbs:
+      - get
+      - list
+  - apiGroups:
+      - admissionregistration.k8s.io
+    resources:
+      - mutatingwebhookconfigurations
+    verbs:
+      - get
+      - update
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: controller-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: controller-role
+subjects:
+  - kind: ServiceAccount
+    name: gpu-controller
+    namespace: gpu-system
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gpu-cache-config
+  namespace: gpu-system
+data:
+  cache.json: |-
+    {}
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gpu-custom-config
+  namespace: gpu-system
+data:
+  config.json: |-
+    {
+      "schedulerDivisor": 1,
+      "schedulerStrategy": "binpack",
+      "agentDriver": "gpu",
+      "agentSamplePeriod": 1,
+      "agentEnableShare": "true",
+      "controllerHookImage": "{{.repo}}gpu-init:v1.2.0"
+    }
+
+  maintainer-rule.yaml: |
+    # maintainer 配置规则
+    maintainer:
+    - type: "driver"                   #给哪个maintainer读取用的
+      imageRepo: "registry.cn-hangzhou.aliyuncs.com/bocloud"    #镜像公用前缀
+      arch-support:                    #支持的架构,如架构不匹配将导致当前maintainer返回invalid
+      - "amd64"
+      - "arm64"
+      vendor-support:                  #支持的产品，如产品不支持将导致当前maintainer被skip
+      - "NVIDIA"
+      - "ASCEND"
+      images:                          #不同vendor下的不同镜像
+      - name: "gpu-driver"             #镜像name
+        tag: "v1.0.0"                  #镜像版本
+        vendor: "NVIDIA"               #适用vendor (正则)
+      mountPath:                       #额外挂载信息
+      - host: "/root/binary/Linux.run" #主机目录
+        path: "/driver.run"            #容器目录
+        node: ".*"                     #适用节点 (正则)  
+      - host: "/etc/os-release"
+        path: "/etc/os-release"
+        node: ".*"
+      - host: "/lib/modules"
+        path: "/lib/modules"
+        node: ".*"
+      - host: "/dev"
+        path: "/dev/host"
+        node: ".*"        
+      - host: "/usr/src"
+        path: "/usr/src"
+        node: ".*"
+      - host: "/usr"
+        path: "/usr/host"
+        node: ".*"
+      - host: "/var/log"
+        path: "/var/log"
+        node: ".*"
+
+  reconciler-rule.yaml: |
+    capacity:
+      - vendor: "NVIDIA"
+        name: "vcuda-rule"
+        rules:
+          - type: "VGPU"
+            key: "bocloud.com/vcuda-core"
+            value: 100
+          - type: "VGPU"
+            key: "bocloud.com/vcuda-memory"
+            valueFrom:
+              key: ".productInfo.memory"       # jsonpath
+          - type: "MIG"
+            keyFrom:
+              key: ".name"                       # jsonpath
+            value: 1
+      - vendor: "HYGON"
+        name: "hygon-rule"
+        rules:
+          - type: "VGPU"
+            key: "hygon.com/dcu"
+            value: 1
+          - type: "MIG"
+            key: "hygon.com/dcu-share"
+            value: 4
+      - vendor: "DL"
+        name: "DL-rule"
+        rules:
+          - type: "VGPU"
+            key: "denglinai.com/gpu"
+            value: 1
+      - vendor: "TS"
+        name: "TS-rule"
+        rules:
+          - type: "VGPU"
+            key: "iluvatar.ai/gpu"
+            value: 1
+      - vendor: "ASCEND"
+        name: "ASCEND-rule"
+        rules:
+          - type: "MIG"
+            key: "huawei.com/"
+            value: 1
+          - type: "VGPU"
+            key: "huawei.com/"
+            value: 1
+      - vendor: "CAMBRICON"
+        name: "CAMBRICON-rule"
+        rules:
+          - type: "VGPU"
+            key: "cambricon.com/mlu370"
+            value: 1
+
+  vendors.yaml: |
+    vendors:
+      - name: "NVIDIA"
+        cardType: "GPU"
+        id: "10DE"
+      - name: "ASCEND"
+        cardType: "NPU"
+        id: "19E5"
+      - name: "HYGON"
+        cardType: "DCU"
+        id: "1D94"
+      - name: "AMD"
+        cardType: "GPU"
+        id: "1002"
+      - name: "DL"
+        cardType: "GPU"
+        id: "1E27"
+      - name: "TS"
+        cardType: "GPU"
+        id: "1E3E"
+      - name: "CAMBRICON"
+        cardType: "MLU"
+        id: "CABC"
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    control-plane: gpu-controller
+  name: gpu-controller-service
+  namespace: gpu-system
+spec:
+  type: NodePort
+  ports:
+    - name: grpc
+      port: 8080
+      protocol: TCP
+      targetPort: grpc
+      nodePort: 32132
+    - name: metrics
+      port: 8081
+      protocol: TCP
+      targetPort: metric
+    - name: webhook
+      port: 443
+      protocol: TCP
+      targetPort: webhook
+  selector:
+    control-plane: gpu-controller
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gpu-controller
+  namespace: gpu-system
+  labels:
+    control-plane: gpu-controller
+spec:
+  selector:
+    matchLabels:
+      control-plane: gpu-controller
+  replicas: {{.replicas}}
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: gpu-controller
+      labels:
+        control-plane: gpu-controller
+        app: gpu-webhook
+    spec:
+      serviceAccountName: gpu-controller
+      containers:
+        - command:
+            - /usr/bin/gpu-controller
+          args:
+            - --metrics-addr=:8081
+            - --webhook-addr=:8443
+            - --cert-dir=/certs
+          image: {{.repo}}gpu-controller:v1.2.0 #registry.cn-hangzhou.aliyuncs.com/bocloud/gpu-controller:v1.2.0
+          imagePullPolicy: Always
+          name: gpu-controller
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+          ports:
+            - containerPort: 8081
+              name: metric
+            - containerPort: 8080
+              name: grpc
+            - containerPort: 8443
+              name: webhook
+          volumeMounts:
+            - name: config
+              mountPath: /etc/gpu-config
+              readOnly: true
+            - name: certs
+              mountPath: /certs
+          securityContext:
+            allowPrivilegeEscalation: false
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 10m
+              memory: 64Mi
+      volumes:
+        - name: config
+          configMap:
+            name: gpu-custom-config
+        - name: certs
+          secret:
+            secretName: gpu-controller-service-certs
+---
+
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: gpu-mutat-hook
+  namespace: gpu-system
+webhooks:
+  - name: gpu-pod.paas.com
+    objectSelector:
+      matchExpressions:
+        - key: app
+          operator: NotIn
+          values: ["fabric-node", "ovs", "beyondac-webhook", "mnq-webhook", "gpu-webhook"]
+        - key: k8s-app
+          operator: NotIn
+          values: ["kube-dns", "coredns", "kube-proxy", "kube-proxy-amd64", "kube-proxy-arm64"]
+    namespaceSelector:
+      matchExpressions:
+        - key: gpu-mutat-hook/webhook
+          operator: NotIn
+          values: ["ignore"]
+    clientConfig:
+      service:
+        name: gpu-controller-service
+        namespace: gpu-system
+        path: "/pod/mutate"
+    admissionReviewVersions: ["v1", "v1beta1"]
+    sideEffects: None
+    rules:
+      - operations: [ "CREATE" ]
+        apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+---
+
+# Source: admission-webhooks/job-patch/job-createSecret.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gpu-admission-create
+  namespace: gpu-system
+spec:
+  template:
+    metadata:
+      name: gpu-admission-create
+      labels:
+        app: gpu-webhook
+    spec:
+      containers:
+        - name: create
+          image: {{.repo}}kube-webhook-certgen:v1.1.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - create
+            - --host=gpu-controller-service,gpu-controller-service.$(POD_NAMESPACE).svc
+            - --namespace=$(POD_NAMESPACE)
+            - --secret-name=gpu-controller-service-certs
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+      restartPolicy: OnFailure
+      serviceAccountName: gpu-controller
+      nodeSelector:
+        kubernetes.io/os: linux
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 2000
+---
+
+# Source: admission-webhooks/job-patch/job-patchWebhook.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: gpu-admission-patch
+  namespace: gpu-system
+spec:
+  template:
+    metadata:
+      name: gpu-admission-patch
+      labels:
+        app: gpu-webhook
+    spec:
+      containers:
+        - name: patch
+          image: {{.repo}}kube-webhook-certgen:v1.1.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - patch
+            - --webhook-name=gpu-mutat-hook
+            - --namespace=$(POD_NAMESPACE)
+            - --patch-validating=false
+            - --secret-name=gpu-controller-service-certs
+            - --patch-failure-policy=Ignore
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+      restartPolicy: OnFailure
+      serviceAccountName: gpu-controller
+      nodeSelector:
+        kubernetes.io/os: linux
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 2000
